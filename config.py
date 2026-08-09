@@ -66,6 +66,11 @@ BUSINESS_NAME = _get("BUSINESS_NAME", "Your Business")
 # Fallback email used when a customer skips the email step at checkout.
 BUSINESS_EMAIL = _get("BUSINESS_EMAIL", "")
 
+# Dashboard access. Production requires explicit secrets; development uses a
+# preview-only fallback so the UI can be evaluated without local setup.
+DASHBOARD_PASSWORD = _get("DASHBOARD_PASSWORD")
+FLASK_SECRET_KEY = _get("FLASK_SECRET_KEY")
+
 # Sanity ceiling on a single order total in Naira (H-4). Orders above this are
 # rejected before a payment link is generated. Configurable via env.
 MAX_ORDER_TOTAL = float(_get("MAX_ORDER_TOTAL", "1000000"))

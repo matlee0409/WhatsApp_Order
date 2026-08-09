@@ -6,19 +6,25 @@ return 200 quickly (Section 12.9). debug is forced off in production and no
 stack traces are returned to callers.
 """
 
+import hmac
 import json
+import secrets
 import threading
 import time
 from collections import deque
 from contextlib import contextmanager
+from functools import wraps
+from urllib.parse import urljoin, urlparse
 
-from flask import Flask, Response, jsonify, request
+from flask import (Flask, Response, jsonify, redirect, render_template,
+                   request, session, url_for)
 from werkzeug.exceptions import HTTPException
 
 import config
 import sheets
 import whatsapp
 from conversation import handle_message
+from dashboard import dashboard_context
 from emailer import send_receipt
 from logger import get_logger, redact_phone
 from notifier import notify_admin, notify_kitchen
@@ -27,6 +33,13 @@ from paystack import parse_event, verify_signature
 log = get_logger("app")
 
 app = Flask(__name__)
+app.secret_key = config.FLASK_SECRET_KEY or ("preview-only-secret" if not config.is_production() else secrets.token_hex(32))
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=config.is_production(),
+    PERMANENT_SESSION_LIFETIME=60 * 60 * 12,
+)
 
 # Bounded in-memory store of processed Twilio MessageSids (Section 12.3).
 _MAX_SEEN = 2000
@@ -128,9 +141,93 @@ def _handle_exception(exc):
     return jsonify(error="Internal Server Error"), 500
 
 
+@app.after_request
+def _security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    return response
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}, 200
+
+
+_login_rate = _RateLimiter(limit=8, window=300)
+
+
+def _safe_next(target: str) -> bool:
+    host = urlparse(request.host_url)
+    candidate = urlparse(urljoin(request.host_url, target or ""))
+    return candidate.scheme in {"http", "https"} and candidate.netloc == host.netloc
+
+
+def _dashboard_password() -> str:
+    if config.DASHBOARD_PASSWORD:
+        return config.DASHBOARD_PASSWORD
+    if not config.is_production():
+        return "dashboard"
+    return ""
+
+
+def dashboard_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get("dashboard_authenticated"):
+            return redirect(url_for("dashboard_login", next=request.path))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+@app.route("/dashboard/login", methods=["GET", "POST"])
+def dashboard_login():
+    if session.get("dashboard_authenticated"):
+        return redirect(url_for("dashboard_page", page="orders"))
+    error = None
+    if request.method == "POST":
+        remote_key = request.remote_addr or "unknown"
+        supplied = request.form.get("password", "")
+        expected = _dashboard_password()
+        if not _login_rate.allow(remote_key):
+            error = "Too many attempts. Please wait a few minutes and try again."
+        elif expected and hmac.compare_digest(supplied, expected):
+            session.clear()
+            session["dashboard_authenticated"] = True
+            session.permanent = True
+            target = request.form.get("next", "")
+            destination = target if target and _safe_next(target) else url_for("dashboard_page", page="orders")
+            return redirect(destination)
+        else:
+            error = "The password you entered is not correct."
+    return render_template("login.html", error=error, next=request.args.get("next", ""))
+
+
+@app.post("/dashboard/logout")
+def dashboard_logout():
+    session.clear()
+    return redirect(url_for("dashboard_login"))
+
+
+@app.get("/")
+def index():
+    return redirect(url_for("dashboard_page", page="orders"))
+
+
+@app.get("/dashboard")
+@dashboard_required
+def dashboard_home():
+    return redirect(url_for("dashboard_page", page="orders"))
+
+
+@app.get("/dashboard/<page>")
+@dashboard_required
+def dashboard_page(page):
+    allowed = {"orders", "analytics", "products", "catalog", "payments", "settings", "templates", "support"}
+    if page not in allowed:
+        return jsonify(error="Not Found"), 404
+    return render_template("dashboard.html", **dashboard_context(page))
 
 
 # ─── WhatsApp inbound (Twilio) ──────────────────────────────────────────────
