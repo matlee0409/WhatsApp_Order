@@ -52,22 +52,26 @@ def get_logger(name: str = "order_bot") -> logging.Logger:
 
     logger.setLevel(logging.INFO)
 
-    os.makedirs(LOG_DIR, exist_ok=True)
     fmt = logging.Formatter(
         "%(asctime)s %(levelname)s [%(name)s] %(message)s"
     )
 
-    file_handler = RotatingFileHandler(
-        LOG_FILE, maxBytes=1_000_000, backupCount=5, encoding="utf-8"
-    )
-    file_handler.setFormatter(fmt)
-    file_handler.addFilter(_RedactionFilter())
+    # Vercel functions run from a read-only deployment filesystem. Runtime
+    # logs belong on stdout/stderr there, where Vercel captures them. Keep the
+    # rotating file handler only for traditional/local deployments.
+    if not os.environ.get("VERCEL"):
+        os.makedirs(LOG_DIR, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            LOG_FILE, maxBytes=1_000_000, backupCount=5, encoding="utf-8"
+        )
+        file_handler.setFormatter(fmt)
+        file_handler.addFilter(_RedactionFilter())
+        logger.addHandler(file_handler)
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(fmt)
     stream_handler.addFilter(_RedactionFilter())
 
-    logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
     logger.propagate = False
     return logger
