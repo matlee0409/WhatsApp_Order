@@ -52,7 +52,7 @@ PAGE_TITLES = {
 }
 
 
-def dashboard_context(page):
+def dashboard_context(page, zernio_connection=None):
     return {
         "page": page,
         "page_title": PAGE_TITLES[page][0],
@@ -62,4 +62,5 @@ def dashboard_context(page):
         "transactions": TRANSACTIONS,
         "categories": CATEGORIES,
         "nav_items": NAV_ITEMS,
+        "zernio_connection": zernio_connection,
     }

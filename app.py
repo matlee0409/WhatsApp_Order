@@ -23,6 +23,7 @@ from werkzeug.exceptions import HTTPException
 import config
 import sheets
 import whatsapp
+import zernio
 from conversation import handle_message
 from dashboard import dashboard_context
 from emailer import send_receipt
@@ -227,7 +228,39 @@ def dashboard_page(page):
     allowed = {"orders", "analytics", "products", "catalog", "payments", "settings", "templates", "support"}
     if page not in allowed:
         return jsonify(error="Not Found"), 404
-    return render_template("dashboard.html", **dashboard_context(page))
+    return render_template(
+        "dashboard.html",
+        **dashboard_context(page, session.get("zernio_connection")),
+        zernio_configured=all((config.ZERNIO_API_KEY, config.ZERNIO_PROFILE_ID, config.ZERNIO_REDIRECT_URI)),
+    )
+
+
+@app.get("/dashboard/zernio/connect")
+@dashboard_required
+def zernio_connect():
+    try:
+        auth_url, state = zernio.get_whatsapp_auth_url()
+    except Exception as exc:
+        log.error("Unable to start Zernio WhatsApp connection: %s", exc)
+        return redirect(url_for("dashboard_page", page="settings", zernio_error="unavailable"))
+    session["zernio_oauth_state"] = state
+    return redirect(auth_url)
+
+
+@app.get("/dashboard/zernio/callback")
+@dashboard_required
+def zernio_callback():
+    expected_state = session.pop("zernio_oauth_state", "")
+    supplied_state = request.args.get("state", "")
+    if not expected_state or not hmac.compare_digest(expected_state, supplied_state):
+        log.warning("Rejected Zernio callback with invalid state")
+        return redirect(url_for("dashboard_page", page="settings", zernio_error="invalid_state"))
+    try:
+        session["zernio_connection"] = zernio.callback_connection(request.args)
+    except ValueError as exc:
+        log.warning("Zernio WhatsApp connection was incomplete: %s", exc)
+        return redirect(url_for("dashboard_page", page="settings", zernio_error="incomplete"))
+    return redirect(url_for("dashboard_page", page="settings", zernio_connected="1"))
 
 
 # ─── WhatsApp inbound (Twilio) ──────────────────────────────────────────────
