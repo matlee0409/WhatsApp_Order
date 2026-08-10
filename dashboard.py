@@ -1,6 +1,10 @@
 """Static prototype data for the management dashboard."""
 
+import base64
+from io import BytesIO
+
 import config
+import qrcode
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
@@ -108,8 +112,21 @@ PAGE_TITLES = {
 }
 
 
+def _whatsapp_qr(connection):
+    phone = "".join(char for char in (connection or {}).get("phone", "") if char.isdigit())
+    if not phone:
+        return None, None
+    chat_url = f"https://wa.me/{phone}"
+    image = qrcode.make(chat_url)
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    qr_data = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+    return chat_url, qr_data
+
+
 def dashboard_context(page, zernio_connection=None):
     orders, products, transactions, categories = _dashboard_data()
+    whatsapp_url, whatsapp_qr = _whatsapp_qr(zernio_connection)
     return {
         "page": page,
         "page_title": PAGE_TITLES[page][0],
@@ -121,4 +138,6 @@ def dashboard_context(page, zernio_connection=None):
         "nav_items": NAV_ITEMS,
         "zernio_connection": zernio_connection,
         "business_name": config.BUSINESS_NAME,
+        "whatsapp_url": whatsapp_url,
+        "whatsapp_qr": whatsapp_qr,
     }
