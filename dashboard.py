@@ -1,7 +1,5 @@
 """Static prototype data for the management dashboard."""
 
-from urllib.parse import quote
-
 import config
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
@@ -110,18 +108,8 @@ PAGE_TITLES = {
 }
 
 
-def _whatsapp_qr(connection):
-    phone = "".join(char for char in ((connection or {}).get("phone") or "") if char.isdigit())
-    if not phone:
-        return None, None
-    chat_url = f"https://wa.me/{phone}"
-    qr_data = f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={quote(chat_url, safe='')}"
-    return chat_url, qr_data
-
-
 def dashboard_context(page, zernio_connection=None):
     orders, products, transactions, categories = _dashboard_data()
-    whatsapp_url, whatsapp_qr = _whatsapp_qr(zernio_connection)
     return {
         "page": page,
         "page_title": PAGE_TITLES[page][0],
@@ -133,6 +121,4 @@ def dashboard_context(page, zernio_connection=None):
         "nav_items": NAV_ITEMS,
         "zernio_connection": zernio_connection,
         "business_name": config.BUSINESS_NAME,
-        "whatsapp_url": whatsapp_url,
-        "whatsapp_qr": whatsapp_qr,
     }
