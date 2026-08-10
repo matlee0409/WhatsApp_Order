@@ -24,6 +24,7 @@ from collections import OrderedDict
 import config
 import nlu
 import sheets
+import interactive
 from logger import get_logger, redact_phone
 from notifier import notify_admin
 from paystack import generate_payment_link
@@ -36,6 +37,7 @@ AWAITING_CATEGORY = "AWAITING_CATEGORY"
 AWAITING_ORDER = "AWAITING_ORDER"
 AWAITING_MORE = "AWAITING_MORE"
 AWAITING_CONFIRM = "AWAITING_CONFIRM"
+AWAITING_FULFILMENT = "AWAITING_FULFILMENT"
 AWAITING_NAME = "AWAITING_NAME"
 AWAITING_EMAIL = "AWAITING_EMAIL"
 AWAITING_PAYMENT = "AWAITING_PAYMENT"
@@ -268,6 +270,31 @@ def _handle_status_query(text, phone):
 
 # ─── Main entry point ───────────────────────────────────────────────────────
 
+def handle_interactive(phone, interaction):
+    """Translate a Zernio button or list selection into the text flow."""
+    command = interactive.parse_reply(interaction)
+    if command.startswith("category:") or command.startswith("item:"):
+        command = command.split(":", 1)[1]
+    return handle_message(phone, command)
+
+
+def interactive_payload(phone):
+    session = _get_session(phone)
+    state = session["state"]
+    if state == AWAITING_CATEGORY:
+        return interactive.category_list(session.get("categories", []))
+    if state == AWAITING_ORDER and session.get("current_category"):
+        items = sheets.get_items_in_category(session["current_category"])
+        return interactive.product_list(session["current_category"], items)
+    if state == AWAITING_MORE:
+        return interactive.cart_actions()
+    if state == AWAITING_FULFILMENT:
+        return interactive.fulfilment_actions()
+    if state == AWAITING_CONFIRM:
+        return interactive.confirmation_actions()
+    return None
+
+
 def handle_message(phone, body):
     """Process one inbound WhatsApp message and return the reply text.
 
@@ -305,6 +332,8 @@ def _dispatch_message(phone, body):
         return _awaiting_order(session, text, phone)
     if state == AWAITING_MORE:
         return _awaiting_more(session, text, upper, phone)
+    if state == AWAITING_FULFILMENT:
+        return _awaiting_fulfilment(session, upper)
     if state == AWAITING_CONFIRM:
         return _awaiting_confirm(session, upper, phone)
     if state == AWAITING_NAME:
@@ -352,8 +381,8 @@ def _awaiting_category(session, text, upper):
     # DONE with a non-empty cart jumps to checkout (Section 6).
     if upper == "DONE":
         if session["cart"]:
-            session["state"] = AWAITING_CONFIRM
-            return _checkout_summary(session["cart"])
+            session["state"] = AWAITING_FULFILMENT
+            return "Choose the delivery option to continue."
         return "Your cart is empty. " + _menu_greeting(categories)
 
     category = _match_category(text, categories)
@@ -418,8 +447,11 @@ def _awaiting_more(session, text, upper, phone):
     categories = session.get("categories") or _load_categories(session)
 
     if upper == "DONE":
-        session["state"] = AWAITING_CONFIRM
-        return _checkout_summary(session["cart"])
+        session["state"] = AWAITING_FULFILMENT
+        return "Choose the delivery option to continue."
+    if upper == "MORE":
+        session["state"] = AWAITING_CATEGORY
+        return "Choose another category."
 
     # A category pick -> show that category's items.
     category = _match_category(text, categories)
@@ -439,6 +471,14 @@ def _awaiting_more(session, text, upper, phone):
     return ("Pick a category to add more:\n"
             f"{_categories_block(categories)}\n"
             "Or reply DONE to checkout.")
+
+
+def _awaiting_fulfilment(session, upper):
+    if upper not in ("DELIVERY", "PICKUP"):
+        return "Please choose Delivery or Pick up to continue."
+    session["fulfilment"] = upper.lower()
+    session["state"] = AWAITING_CONFIRM
+    return _checkout_summary(session["cart"])
 
 
 def _awaiting_confirm(session, upper, phone):

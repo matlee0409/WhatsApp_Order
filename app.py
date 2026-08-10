@@ -23,7 +23,8 @@ from werkzeug.exceptions import HTTPException
 import config
 import sheets
 import whatsapp
-from conversation import handle_message
+import zernio
+from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
 from emailer import send_receipt
 from logger import get_logger, redact_phone
@@ -227,7 +228,76 @@ def dashboard_page(page):
     allowed = {"orders", "analytics", "products", "catalog", "payments", "settings", "templates", "support"}
     if page not in allowed:
         return jsonify(error="Not Found"), 404
-    return render_template("dashboard.html", **dashboard_context(page))
+    return render_template(
+        "dashboard.html",
+        **dashboard_context(page, session.get("zernio_connection")),
+        zernio_configured=bool(config.ZERNIO_API_KEY),
+    )
+
+
+@app.get("/dashboard/zernio/connect")
+@dashboard_required
+def zernio_connect():
+    try:
+        auth_url, state = zernio.get_whatsapp_auth_url(
+            config.ZERNIO_REDIRECT_URI or url_for("zernio_callback", _external=True)
+        )
+    except Exception as exc:
+        log.error("Unable to start Zernio WhatsApp connection: %s", exc)
+        return redirect(url_for("dashboard_page", page="settings", zernio_error="unavailable"))
+    session["zernio_oauth_state"] = state
+    return redirect(auth_url)
+
+
+@app.get("/dashboard/zernio/callback")
+@dashboard_required
+def zernio_callback():
+    expected_state = session.pop("zernio_oauth_state", "")
+    supplied_state = request.args.get("state", "")
+    if not expected_state or not hmac.compare_digest(expected_state, supplied_state):
+        log.warning("Rejected Zernio callback with invalid state")
+        return redirect(url_for("dashboard_page", page="settings", zernio_error="invalid_state"))
+    try:
+        session["zernio_connection"] = zernio.callback_connection(request.args)
+    except ValueError as exc:
+        log.warning("Zernio WhatsApp connection was incomplete: %s", exc)
+        return redirect(url_for("dashboard_page", page="settings", zernio_error="incomplete"))
+    return redirect(url_for("dashboard_page", page="settings", zernio_connected="1"))
+
+
+@app.post("/zernio/webhook")
+def zernio_webhook():
+    raw_body = request.get_data()
+    supplied = (
+        request.headers.get("X-Zernio-Signature")
+        or request.headers.get("X-Webhook-Signature")
+        or request.headers.get("X-Zernio-Webhook-Secret", "")
+    )
+    if not zernio.verify_webhook_signature(raw_body, supplied):
+        return Response("Forbidden", status=403)
+    payload = request.get_json(silent=True) or {}
+    event = payload.get("data", payload)
+    message = event.get("message", event)
+    if not isinstance(message, dict):
+        message = {}
+    contact = event.get("contact", {}) or {}
+    account = event.get("account", {}) or {}
+    phone = (event.get("from") or contact.get("phoneNumber") or "").strip()
+    account_id = event.get("accountId") or account.get("accountId")
+    conversation = event.get("conversation", {}) or {}
+    conversation_id = event.get("conversationId") or conversation.get("id")
+    interaction = message.get("interactive") or event.get("interactive") or event.get("metadata")
+    body = message.get("text") or event.get("text") or ""
+    if not _valid_phone(phone) or not account_id or not conversation_id:
+        return Response("", status=200)
+    try:
+        reply = handle_interactive(phone, interaction) if interaction else handle_message(phone, body)
+        rich_reply = interactive_payload(phone)
+        zernio.send_message(account_id, conversation_id, reply, rich_reply)
+    except Exception as exc:
+        log.error("Zernio webhook processing failed: %s", exc)
+        notify_admin(f"Zernio webhook processing failed: {exc}")
+    return Response("", status=200)
 
 
 # ─── WhatsApp inbound (Twilio) ──────────────────────────────────────────────
