@@ -69,6 +69,7 @@ def _dashboard_data():
     ]
     category_rows = [
         {
+            "id": category.id,
             "name": category.name,
             "products": len(category.items),
             "sales": 0,

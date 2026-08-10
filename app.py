@@ -25,6 +25,8 @@ import sheets
 import zernio
 from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
+from db import session_scope
+from models import MenuCategory, MenuItem
 from logger import get_logger
 from notifier import notify_admin
 from paystack import parse_event, verify_signature
@@ -213,6 +215,47 @@ def dashboard_page(page):
         **dashboard_context(page, session.get("zernio_connection")),
         zernio_configured=bool(config.ZERNIO_API_KEY),
     )
+
+
+@app.post("/dashboard/menu-items/<int:item_id>")
+@dashboard_required
+def update_menu_item(item_id):
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    category_id = payload.get("category_id")
+    try:
+        price_kobo = int(round(float(payload.get("price")) * 100))
+    except (TypeError, ValueError):
+        return jsonify(error="Enter a valid price."), 400
+    if not name or price_kobo < 0 or not isinstance(category_id, int):
+        return jsonify(error="Name, category, and price are required."), 400
+    with session_scope() as db_session:
+        item = db_session.get(MenuItem, item_id)
+        category = db_session.get(MenuCategory, category_id)
+        if item is None or category is None:
+            return jsonify(error="Menu item or category not found."), 404
+        item.name = name
+        item.description = (payload.get("description") or "").strip() or None
+        item.price_kobo = price_kobo
+        item.category = category
+        item.is_available = bool(payload.get("active"))
+    return jsonify(ok=True)
+
+
+@app.post("/dashboard/menu-categories/<int:category_id>")
+@dashboard_required
+def update_menu_category(category_id):
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify(error="Category name is required."), 400
+    with session_scope() as db_session:
+        category = db_session.get(MenuCategory, category_id)
+        if category is None:
+            return jsonify(error="Category not found."), 404
+        category.name = name
+        category.is_active = bool(payload.get("active"))
+    return jsonify(ok=True)
 
 
 @app.get("/dashboard/zernio/connect")
