@@ -4,7 +4,7 @@ A standalone, Tier‑1 WhatsApp order management agent for restaurants, food
 vendors, cloud kitchens, and small retailers. Built by Jorion Technologies and
 designed to be cloned and deployed by any developer.
 
-Pickup only. Google Sheets is the database. The order parser matches customer
+Pickup only. PostgreSQL is the database. The order parser matches customer
 messages against the live menu. Paystack handles payment. Telegram notifies the
 owner (outbound only).
 
@@ -30,7 +30,7 @@ pickup‑ready notification.
    by their phone number from a previous order) skip both steps automatically,
    reusing their stored name and email.
 7. The bot generates a unique exact‑amount **Paystack** payment link and writes
-   a PENDING order to Google Sheets.
+   a PENDING order to PostgreSQL.
 8. Customer pays → Paystack webhook fires → the bot confirms payment over
    WhatsApp, notifies the kitchen via Telegram, and (optionally) emails a
    receipt via Brevo.
@@ -57,9 +57,9 @@ status of their order back.
 
 ---
 
-## 3. Google Sheets setup
+## 3. PostgreSQL setup
 
-1. Create a Google Cloud project and enable the **Google Sheets API**.
+1. Create a Google Cloud project and enable the **PostgreSQL API**.
 2. Create a **service account**, generate a JSON key, and save it as
    `credentials.json` in the project root. **Never commit this file** — it is
    already in `.gitignore`.
@@ -203,7 +203,7 @@ that public URL for the Zernio and Paystack webhooks.
   `credentials.json` and `.env` are gitignored and never committed.
 - **Flask** — `debug=False` in production, no stack traces in responses, inbound
   webhooks return `200` quickly.
-- **Sheets apostrophe stripping** — applied on every read (Google Sheets
+- **Sheets apostrophe stripping** — applied on every read (PostgreSQL
   prepends an apostrophe to values starting with `+` or `=`).
 
 ---

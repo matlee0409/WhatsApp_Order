@@ -35,10 +35,6 @@ def _get(name: str, default=None):
 PAYSTACK_SECRET_KEY = _get("PAYSTACK_SECRET_KEY")
 PAYSTACK_WEBHOOK_SECRET = _get("PAYSTACK_WEBHOOK_SECRET")
 
-# ─── Google Sheets ─────────────────────────────────────────────────────────
-GOOGLE_SPREADSHEET_ID = _get("GOOGLE_SPREADSHEET_ID")
-GOOGLE_CREDENTIALS_FILE = _get("GOOGLE_CREDENTIALS_FILE", "credentials.json")
-
 # ─── PostgreSQL / Redis ─────────────────────────────────────────────────────
 # SQLite and local Redis defaults keep imports and development previews usable;
 # production requires explicit network-backed services below.
@@ -81,10 +77,6 @@ MAX_ORDER_TOTAL = float(_get("MAX_ORDER_TOTAL", "1000000"))
 
 # Brevo email receipts are optional — enabled only when fully configured.
 EMAIL_ENABLED = bool(BREVO_API_KEY and BREVO_SENDER_EMAIL)
-
-# Sheet tab names (Section 5).
-MENU_SHEET = "Menu"
-ORDERS_SHEET = "Orders"
 
 
 def is_production() -> bool:

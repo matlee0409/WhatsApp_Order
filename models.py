@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db import Base
@@ -56,6 +56,12 @@ class Order(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     total_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ready_notified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    conversation_id: Mapped[str | None] = mapped_column(String(160))
+    fulfilment: Mapped[str | None] = mapped_column(String(32))
+    payment_reference: Mapped[str | None] = mapped_column(String(160), unique=True)
     customer: Mapped[Customer] = relationship(back_populates="orders")
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan")
     payments: Mapped[list["Payment"]] = relationship(back_populates="order")
@@ -70,6 +76,7 @@ class OrderItem(Base):
     item_name: Mapped[str] = mapped_column(String(160), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_total_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     order: Mapped[Order] = relationship(back_populates="items")
     __table_args__ = (Index("ix_order_items_order", "order_id"),)
 
@@ -82,6 +89,7 @@ class Payment(Base):
     provider_reference: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
     amount_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    metadata_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     order: Mapped[Order] = relationship(back_populates="payments")
     __table_args__ = (Index("ix_payments_order_status", "order_id", "status"),)
