@@ -24,7 +24,7 @@ import config
 import sheets
 import whatsapp
 import zernio
-from conversation import handle_message
+from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
 from emailer import send_receipt
 from logger import get_logger, redact_phone
@@ -261,6 +261,33 @@ def zernio_callback():
         log.warning("Zernio WhatsApp connection was incomplete: %s", exc)
         return redirect(url_for("dashboard_page", page="settings", zernio_error="incomplete"))
     return redirect(url_for("dashboard_page", page="settings", zernio_connected="1"))
+
+
+@app.post("/zernio/webhook")
+def zernio_webhook():
+    secret = config.ZERNIO_WEBHOOK_SECRET
+    supplied = request.headers.get("X-Zernio-Webhook-Secret", "")
+    if not secret or not hmac.compare_digest(supplied, secret):
+        return Response("Forbidden", status=403)
+    payload = request.get_json(silent=True) or {}
+    event = payload.get("data", payload)
+    message = event.get("message", event)
+    contact = event.get("contact", {}) or {}
+    phone = (event.get("from") or contact.get("phoneNumber") or "").strip()
+    account_id = event.get("accountId") or event.get("account", {}).get("accountId")
+    conversation_id = event.get("conversationId") or event.get("conversation", {}).get("id")
+    interaction = message.get("interactive") or event.get("interactive")
+    body = message.get("text") or event.get("text") or ""
+    if not _valid_phone(phone) or not account_id or not conversation_id:
+        return Response("", status=200)
+    try:
+        reply = handle_interactive(phone, interaction) if interaction else handle_message(phone, body)
+        rich_reply = interactive_payload(phone)
+        zernio.send_message(account_id, conversation_id, reply, rich_reply)
+    except Exception as exc:
+        log.error("Zernio webhook processing failed: %s", exc)
+        notify_admin(f"Zernio webhook processing failed: {exc}")
+    return Response("", status=200)
 
 
 # ─── WhatsApp inbound (Twilio) ──────────────────────────────────────────────

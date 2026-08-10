@@ -37,6 +37,23 @@ def get_whatsapp_auth_url() -> tuple[str, str]:
     return auth_url, data.get("state") or secrets.token_urlsafe(32)
 
 
+def send_message(account_id: str, conversation_id: str, message: str = "", interactive: dict | None = None) -> bool:
+    """Send a text or interactive message through a Zernio conversation."""
+    payload = {"accountId": account_id}
+    if message:
+        payload["message"] = message
+    if interactive:
+        payload["interactive"] = interactive
+    response = requests.post(
+        _api_url(f"/v1/inbox/conversations/{conversation_id}/messages"),
+        headers={"Authorization": f"Bearer {config.require('ZERNIO_API_KEY')}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=15,
+    )
+    response.raise_for_status()
+    return True
+
+
 def callback_connection(args: dict) -> dict:
     """Extract the non-sensitive connection details returned by Zernio."""
     if args.get("connected") != "whatsapp":
