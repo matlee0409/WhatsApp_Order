@@ -1,10 +1,8 @@
 """Static prototype data for the management dashboard."""
 
-import base64
-from io import BytesIO
+from urllib.parse import quote
 
 import config
-import qrcode
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
@@ -117,10 +115,7 @@ def _whatsapp_qr(connection):
     if not phone:
         return None, None
     chat_url = f"https://wa.me/{phone}"
-    image = qrcode.make(chat_url)
-    buffer = BytesIO()
-    image.save(buffer, format="PNG")
-    qr_data = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+    qr_data = f"https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={quote(chat_url, safe='')}"
     return chat_url, qr_data
 
 
