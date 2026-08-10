@@ -258,6 +258,8 @@ def zernio_webhook():
         return Response("Forbidden", status=403)
     payload = request.get_json(silent=True) or {}
     event = payload.get("data", payload)
+    if not isinstance(event, dict):
+        return Response("", status=200)
     message = event.get("message", event)
     if not isinstance(message, dict):
         message = {}
