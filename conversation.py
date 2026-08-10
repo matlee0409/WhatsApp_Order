@@ -449,6 +449,9 @@ def _awaiting_more(session, text, upper, phone):
     if upper == "DONE":
         session["state"] = AWAITING_FULFILMENT
         return "Choose the delivery option to continue."
+    if upper == "MORE":
+        session["state"] = AWAITING_CATEGORY
+        return "Choose another category."
 
     # A category pick -> show that category's items.
     category = _match_category(text, categories)

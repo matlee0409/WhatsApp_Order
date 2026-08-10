@@ -2,6 +2,8 @@
 
 from urllib.parse import urlparse
 
+import hashlib
+import hmac
 import secrets
 
 import requests
@@ -37,6 +39,16 @@ def get_whatsapp_auth_url() -> tuple[str, str]:
     return auth_url, data.get("state") or secrets.token_urlsafe(32)
 
 
+def verify_webhook_signature(raw_body: bytes, signature: str) -> bool:
+    if not config.ZERNIO_WEBHOOK_SECRET or not signature:
+        return False
+    digest = hmac.new(
+        config.ZERNIO_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256
+    ).hexdigest()
+    supplied = signature.removeprefix("sha256=")
+    return hmac.compare_digest(digest, supplied)
+
+
 def send_message(account_id: str, conversation_id: str, message: str = "", interactive: dict | None = None) -> bool:
     """Send a text or interactive message through a Zernio conversation."""
     payload = {"accountId": account_id}
@@ -46,7 +58,10 @@ def send_message(account_id: str, conversation_id: str, message: str = "", inter
         payload["interactive"] = interactive
     response = requests.post(
         _api_url(f"/v1/inbox/conversations/{conversation_id}/messages"),
-        headers={"Authorization": f"Bearer {config.require('ZERNIO_API_KEY')}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {config.require('ZERNIO_API_KEY')}",
+            "Content-Type": "application/json",
+        },
         json=payload,
         timeout=15,
     )

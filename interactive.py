@@ -73,8 +73,15 @@ def fulfilment_actions():
 
 
 def parse_reply(interaction):
-    """Return a safe text command from a Zernio interactive webhook item."""
+    """Return a safe command from Zernio interactive webhook metadata."""
     if not isinstance(interaction, dict):
         return ""
+    metadata = interaction.get("metadata", interaction)
     reply = interaction.get("button_reply") or interaction.get("list_reply") or {}
-    return str(reply.get("id") or reply.get("payload") or reply.get("title") or "").strip()
+    return str(
+        metadata.get("interactiveId")
+        or reply.get("id")
+        or reply.get("payload")
+        or reply.get("title")
+        or ""
+    ).strip()

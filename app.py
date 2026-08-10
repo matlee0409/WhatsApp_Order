@@ -265,18 +265,26 @@ def zernio_callback():
 
 @app.post("/zernio/webhook")
 def zernio_webhook():
-    secret = config.ZERNIO_WEBHOOK_SECRET
-    supplied = request.headers.get("X-Zernio-Webhook-Secret", "")
-    if not secret or not hmac.compare_digest(supplied, secret):
+    raw_body = request.get_data()
+    supplied = (
+        request.headers.get("X-Zernio-Signature")
+        or request.headers.get("X-Webhook-Signature")
+        or request.headers.get("X-Zernio-Webhook-Secret", "")
+    )
+    if not zernio.verify_webhook_signature(raw_body, supplied):
         return Response("Forbidden", status=403)
     payload = request.get_json(silent=True) or {}
     event = payload.get("data", payload)
     message = event.get("message", event)
+    if not isinstance(message, dict):
+        message = {}
     contact = event.get("contact", {}) or {}
+    account = event.get("account", {}) or {}
     phone = (event.get("from") or contact.get("phoneNumber") or "").strip()
-    account_id = event.get("accountId") or event.get("account", {}).get("accountId")
-    conversation_id = event.get("conversationId") or event.get("conversation", {}).get("id")
-    interaction = message.get("interactive") or event.get("interactive")
+    account_id = event.get("accountId") or account.get("accountId")
+    conversation = event.get("conversation", {}) or {}
+    conversation_id = event.get("conversationId") or conversation.get("id")
+    interaction = message.get("interactive") or event.get("interactive") or event.get("metadata")
     body = message.get("text") or event.get("text") or ""
     if not _valid_phone(phone) or not account_id or not conversation_id:
         return Response("", status=200)
