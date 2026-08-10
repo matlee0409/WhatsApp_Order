@@ -25,7 +25,7 @@ import sheets
 import zernio
 from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
-from db import session_scope
+from db import ensure_schema, session_scope
 from models import MenuCategory, MenuItem, MenuItemImage
 from logger import get_logger
 from notifier import notify_admin
@@ -34,6 +34,7 @@ from paystack import parse_event, verify_signature
 log = get_logger("app")
 
 app = Flask(__name__)
+ensure_schema()
 app.secret_key = config.FLASK_SECRET_KEY or ("preview-only-secret" if not config.is_production() else secrets.token_hex(32))
 app.config.update(
     MAX_CONTENT_LENGTH=5 * 1024 * 1024,
