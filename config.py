@@ -50,7 +50,7 @@ ZERNIO_WEBHOOK_SECRET = _get("ZERNIO_WEBHOOK_SECRET")
 
 # ─── App ───────────────────────────────────────────────────────────────────
 FLASK_ENV = _get("FLASK_ENV", "production")
-PORT = int(_get("PORT", "5003"))
+PORT = int(_get("PORT", "8080"))
 PICKUP_ADDRESS = _get("PICKUP_ADDRESS", "")
 BUSINESS_NAME = _get("BUSINESS_NAME", "Your Business")
 # Fallback email used when a customer skips the email step at checkout.
