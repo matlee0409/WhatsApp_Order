@@ -10,9 +10,6 @@ Two uses:
 Sends via the Telegram Bot HTTP API. Never raises into a webhook path.
 """
 
-import requests
-
-import config
 from logger import get_logger
 
 log = get_logger("notifier")
@@ -21,24 +18,8 @@ _TIMEOUT = 15
 
 
 def _send(text: str) -> bool:
-    token = config.TELEGRAM_BOT_TOKEN
-    chat_id = config.TELEGRAM_ADMIN_CHAT_ID
-    if not token or not chat_id:
-        log.error("Telegram not configured — cannot send notification")
-        return False
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    try:
-        resp = requests.post(
-            url,
-            json={"chat_id": chat_id, "text": text,
-                  "parse_mode": "HTML", "disable_web_page_preview": True},
-            timeout=_TIMEOUT,
-        )
-        resp.raise_for_status()
-        return True
-    except requests.RequestException as exc:
-        log.error("Telegram send failed: %s", exc)
-        return False
+    log.warning("Owner notification: %s", text)
+    return False
 
 
 def notify_admin(message: str) -> bool:

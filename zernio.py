@@ -4,10 +4,20 @@ from urllib.parse import urlparse
 
 import hashlib
 import hmac
+import json
 import secrets
 import threading
 
 import requests
+
+import redis_store
+
+_REDIS_ERRORS = (redis_store.RedisUnavailableError, OSError)
+try:
+    import redis
+    _REDIS_ERRORS = _REDIS_ERRORS + (redis.RedisError,)
+except ImportError:
+    pass
 
 import config
 from logger import get_logger
@@ -99,13 +109,33 @@ def verify_webhook_signature(raw_body: bytes, signature: str) -> bool:
 
 
 def remember_conversation(phone: str, account_id: str, conversation_id: str) -> None:
+    value = {"account_id": account_id, "conversation_id": conversation_id}
+    try:
+        redis_store.get_redis().set(
+            f"whatsapp:conversation:{phone}", json.dumps(value)
+        )
+    except _REDIS_ERRORS as exc:
+        if config.is_production():
+            raise
+        log.warning("Redis unavailable in development; using in-memory mapping: %s", exc)
     with _conversations_lock:
         _conversations[phone] = (account_id, conversation_id)
 
 
 def send_message_to_phone(phone: str, message: str) -> bool:
-    with _conversations_lock:
-        conversation = _conversations.get(phone)
+    conversation = None
+    try:
+        raw = redis_store.get_redis().get(f"whatsapp:conversation:{phone}")
+        if raw:
+            value = json.loads(raw)
+            conversation = (value["account_id"], value["conversation_id"])
+    except _REDIS_ERRORS + (TypeError, ValueError, KeyError) as exc:
+        if config.is_production():
+            raise
+        log.warning("Redis unavailable in development; using in-memory mapping: %s", exc)
+    if conversation is None and not config.is_production():
+        with _conversations_lock:
+            conversation = _conversations.get(phone)
     if not conversation:
         log.error("No Zernio conversation found for %s", phone)
         return False

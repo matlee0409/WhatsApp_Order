@@ -25,9 +25,8 @@ import sheets
 import zernio
 from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
-from emailer import send_receipt
 from logger import get_logger
-from notifier import notify_admin, notify_kitchen
+from notifier import notify_admin
 from paystack import parse_event, verify_signature
 
 log = get_logger("app")
@@ -375,15 +374,6 @@ def _process_successful_charge(order_ref, payment_ref, data):
         f"We will let you know when it is ready for pickup.\n"
         f"Pickup address: {config.PICKUP_ADDRESS}"
     )
-
-    # Telegram kitchen notification (Section 7.3 step 8).
-    notify_kitchen(resolved_ref, name, phone, cart, total)
-
-    # Optional Brevo email receipt (Section 7.3 step 9).
-    if config.EMAIL_ENABLED:
-        email = data.get("customer", {}).get("email")
-        if email and not email.endswith("@orders.local"):
-            send_receipt(email, resolved_ref, cart, total)
 
     log.info("Processed payment for order %s", resolved_ref)
 

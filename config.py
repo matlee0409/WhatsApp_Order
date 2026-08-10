@@ -7,8 +7,7 @@ call time, so the bot can be imported and unit-checked without a populated
 .env. Use `require(name)` at the point of use to fail loud when a credential
 is actually needed.
 
-Security: no secrets are hard-coded here. Section 12.8 — the credentials.json
-path is taken from GOOGLE_CREDENTIALS_FILE, never embedded.
+Security: no secrets are hard-coded here; credentials are read from environment variables.
 """
 
 import os
@@ -35,9 +34,11 @@ def _get(name: str, default=None):
 PAYSTACK_SECRET_KEY = _get("PAYSTACK_SECRET_KEY")
 PAYSTACK_WEBHOOK_SECRET = _get("PAYSTACK_WEBHOOK_SECRET")
 
-# ─── Google Sheets ─────────────────────────────────────────────────────────
-GOOGLE_SPREADSHEET_ID = _get("GOOGLE_SPREADSHEET_ID")
-GOOGLE_CREDENTIALS_FILE = _get("GOOGLE_CREDENTIALS_FILE", "credentials.json")
+# ─── PostgreSQL / Redis ─────────────────────────────────────────────────────
+# SQLite and local Redis defaults keep imports and development previews usable;
+# production requires explicit network-backed services below.
+DATABASE_URL = _get("DATABASE_URL", "sqlite:///order_bot.db")
+REDIS_URL = _get("REDIS_URL", "redis://localhost:6379/0")
 
 # ─── Zernio WhatsApp connection ────────────────────────────────────────────
 ZERNIO_API_BASE_URL = _get("ZERNIO_API_BASE_URL", "https://zernio.com/api")
@@ -46,15 +47,6 @@ ZERNIO_PROFILE_ID = _get("ZERNIO_PROFILE_ID")
 ZERNIO_PROFILE_NAME = _get("ZERNIO_PROFILE_NAME")
 ZERNIO_REDIRECT_URI = _get("ZERNIO_REDIRECT_URI")
 ZERNIO_WEBHOOK_SECRET = _get("ZERNIO_WEBHOOK_SECRET")
-
-# ─── Telegram (OUTBOUND owner notifications only) ──────────────────────────
-TELEGRAM_BOT_TOKEN = _get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_ADMIN_CHAT_ID = _get("TELEGRAM_ADMIN_CHAT_ID")
-
-# ─── Brevo (optional email receipts) ───────────────────────────────────────
-BREVO_API_KEY = _get("BREVO_API_KEY")
-BREVO_SENDER_EMAIL = _get("BREVO_SENDER_EMAIL")
-BREVO_SENDER_NAME = _get("BREVO_SENDER_NAME")
 
 # ─── App ───────────────────────────────────────────────────────────────────
 FLASK_ENV = _get("FLASK_ENV", "production")
@@ -73,13 +65,6 @@ FLASK_SECRET_KEY = _get("FLASK_SECRET_KEY")
 # rejected before a payment link is generated. Configurable via env.
 MAX_ORDER_TOTAL = float(_get("MAX_ORDER_TOTAL", "1000000"))
 
-# Brevo email receipts are optional — enabled only when fully configured.
-EMAIL_ENABLED = bool(BREVO_API_KEY and BREVO_SENDER_EMAIL)
-
-# Sheet tab names (Section 5).
-MENU_SHEET = "Menu"
-ORDERS_SHEET = "Orders"
-
 
 def is_production() -> bool:
     return FLASK_ENV == "production"
@@ -96,6 +81,10 @@ def check_production_safety() -> None:
             "FLASK_ENV=production. Refusing to start — use a live key."
         )
         raise SystemExit(1)
+    if is_production() and (DATABASE_URL.startswith("sqlite") or not DATABASE_URL):
+        raise RuntimeError("DATABASE_URL must point to PostgreSQL in production")
+    if is_production() and (not REDIS_URL or not REDIS_URL.startswith("redis")):
+        raise RuntimeError("REDIS_URL must point to Redis in production")
 
 
 def require(name: str):
