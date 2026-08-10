@@ -15,11 +15,23 @@ over WhatsApp. Side effects (Sheets write, Paystack link) happen inline at
 checkout.
 """
 
+import json
 import random
 import re
+import secrets
 import string
 import threading
+import time
 from collections import OrderedDict
+
+import redis_store
+
+_REDIS_ERRORS = (redis_store.RedisUnavailableError, OSError)
+try:
+    import redis
+    _REDIS_ERRORS = _REDIS_ERRORS + (redis.RedisError,)
+except ImportError:
+    pass
 
 import config
 import nlu
@@ -61,6 +73,62 @@ _MIN_NAME_LEN = 2
 _MAX_NAME_LEN = 60
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_SESSION_TTL = 48 * 60 * 60
+_LOCK_TTL = 30
+
+
+def _redis_failure(exc):
+    if config.is_production():
+        raise exc
+    log.warning("Redis unavailable in development; using in-memory state: %s", exc)
+
+
+def _load_session(phone):
+    try:
+        raw = redis_store.get_redis().get(f"conversation:session:{phone}")
+    except _REDIS_ERRORS as exc:
+        _redis_failure(exc)
+        return None
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        if config.is_production():
+            raise RuntimeError("Invalid Redis conversation session") from exc
+        log.warning("Invalid Redis session in development; starting over")
+        return None
+
+
+def _save_session(phone, session):
+    try:
+        redis_store.get_redis().setex(
+            f"conversation:session:{phone}", _SESSION_TTL, json.dumps(session)
+        )
+    except _REDIS_ERRORS as exc:
+        _redis_failure(exc)
+
+
+def _acquire_redis_lock(phone):
+    token = secrets.token_urlsafe(24)
+    try:
+        client = redis_store.get_redis()
+        if client.set(f"conversation:lock:{phone}", token, nx=True, ex=_LOCK_TTL):
+            return client, token
+        return None, None
+    except _REDIS_ERRORS as exc:
+        _redis_failure(exc)
+        return None, None
+
+
+def _release_redis_lock(client, phone, token):
+    if not client:
+        return
+    script = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end"
+    try:
+        client.eval(script, 1, f"conversation:lock:{phone}", token)
+    except _REDIS_ERRORS as exc:
+        _redis_failure(exc)
 
 
 # ─── Order reference (Section 10) ───────────────────────────────────────────
@@ -161,10 +229,13 @@ def _new_session():
 
 def _get_session(phone):
     with _store_lock:
-        if phone not in _sessions:
+        persisted = _load_session(phone)
+        if persisted is not None:
+            _sessions[phone] = persisted
+        elif phone not in _sessions:
             _sessions[phone] = _new_session()
         else:
-            _sessions.move_to_end(phone)  # most-recently-used
+            _sessions.move_to_end(phone)
         # Bound memory: evict least-recently-used sessions past the cap.
         while len(_sessions) > _MAX_TRACKED_NUMBERS:
             _sessions.popitem(last=False)
@@ -299,10 +370,29 @@ def handle_message(phone, body):
     """Process one inbound WhatsApp message and return the reply text.
 
     Serialized per phone (H-1) so two concurrent messages from the same number
-    cannot corrupt that number's session.
+    cannot corrupt that number's session, including across workers.
     """
     with _phone_lock(phone):
-        return _dispatch_message(phone, body)
+        redis_client = redis_token = None
+        while True:
+            redis_client, redis_token = _acquire_redis_lock(phone)
+            if redis_client is not None or redis_token is not None:
+                break
+            # A live Redis lock belongs to another worker; wait for its expiry.
+            try:
+                if redis_store.get_redis().exists(f"conversation:lock:{phone}"):
+                    time.sleep(0.05)
+                    continue
+            except _REDIS_ERRORS as exc:
+                _redis_failure(exc)
+            break
+        try:
+            session = _get_session(phone)
+            reply = _dispatch_message(phone, body)
+            _save_session(phone, session)
+            return reply
+        finally:
+            _release_redis_lock(redis_client, phone, redis_token)
 
 
 def _dispatch_message(phone, body):
