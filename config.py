@@ -51,10 +51,6 @@ ZERNIO_WEBHOOK_SECRET = _get("ZERNIO_WEBHOOK_SECRET")
 TELEGRAM_BOT_TOKEN = _get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_ADMIN_CHAT_ID = _get("TELEGRAM_ADMIN_CHAT_ID")
 
-# ─── Anthropic (Claude — order parsing only) ───────────────────────────────
-ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
-ANTHROPIC_MODEL = _get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-
 # ─── Brevo (optional email receipts) ───────────────────────────────────────
 BREVO_API_KEY = _get("BREVO_API_KEY")
 BREVO_SENDER_EMAIL = _get("BREVO_SENDER_EMAIL")

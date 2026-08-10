@@ -6,9 +6,9 @@ restart — acceptable for Tier 1; Redis is the documented Tier 2 upgrade
 running cart, and checks out once. Nothing is written to Sheets until the
 customer confirms with YES (Section 6 CART RULES).
 
-All reply templates are fixed strings — Claude is used only for order parsing
-(Section 9). Customer text is untrusted (Section 12.4): order references are
-validated before any lookup.
+All reply templates are fixed strings — order parsing matches against the live
+menu. Customer text is untrusted (Section 12.4): order references are validated
+before any lookup.
 
 handle_message(phone, body) -> reply string. The caller (app.py) sends the reply
 over WhatsApp. Side effects (Sheets write, Paystack link) happen inline at

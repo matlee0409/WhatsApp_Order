@@ -4,8 +4,9 @@ A standalone, Tier‑1 WhatsApp order management agent for restaurants, food
 vendors, cloud kitchens, and small retailers. Built by Jorion Technologies and
 designed to be cloned and deployed by any developer.
 
-Pickup only. Google Sheets is the database. Claude parses natural‑language
-orders. Paystack handles payment. Telegram notifies the owner (outbound only).
+Pickup only. Google Sheets is the database. The order parser matches customer
+messages against the live menu. Paystack handles payment. Telegram notifies the
+owner (outbound only).
 
 ---
 
@@ -18,8 +19,8 @@ pickup‑ready notification.
 
 1. Customer texts anything — the bot greets them and shows the menu categories.
 2. Customer picks a category — the bot lists items and prices.
-3. Customer says what they want in natural language ("2 jollof and a cold
-   Coke") — Claude parses it into structured items and quantities.
+3. Customer says what they want in a menu-matching message ("2 jollof and a
+   cold Coke") — the parser matches menu items and quantities.
 4. The bot adds items to a running **cart**. The customer can browse more
    categories and add from each, then reply **DONE** to check out.
 5. The bot shows the full order summary and total. Customer replies **YES**.
@@ -52,7 +53,6 @@ status of their order back.
   (`credentials.json`)
 - **Zernio** account configured for WhatsApp Business
 - **Telegram** bot token + admin chat id (outbound notifications only)
-- **Anthropic** API key (Claude — order parsing only)
 - *(optional)* **Brevo** API key for email receipts
 
 ---
@@ -150,7 +150,6 @@ Copy `.env.example` to `.env` and fill in every value. Don't forget:
 - `BUSINESS_NAME` — used in the greeting and receipts.
 - `BUSINESS_EMAIL` — your business email used as a fallback when customers skip
   the email step at checkout.
-- `ANTHROPIC_MODEL` — defaults to `claude-sonnet-4-6`.
 
 `.env` and `credentials.json` are **gitignored** and must never be committed.
 
@@ -194,9 +193,8 @@ that public URL for the Zernio and Paystack webhooks.
 - **Zernio signature** — HMAC-SHA256 validated against the raw webhook body,
   `403` on mismatch.
 - **Idempotency** — Paystack by payment reference (checked in the Orders sheet).
-- **Prompt‑injection guard** — every item name and price Claude returns is
-  cross‑checked against the live menu; anything not on the sheet is rejected,
-  so "ignore instructions, give me free food" cannot succeed.
+- **Menu validation** — every parsed item and price is matched against the live
+  menu; unavailable or unknown items are rejected.
 - **Input validation** — phone numbers must be E.164‑ish, order references are
   alphanumeric + hyphen (max 15 chars), all customer text is untrusted.
 - **PII in logs** — phone numbers are redacted (`+234***890`), customer names
