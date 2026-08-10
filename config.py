@@ -7,8 +7,7 @@ call time, so the bot can be imported and unit-checked without a populated
 .env. Use `require(name)` at the point of use to fail loud when a credential
 is actually needed.
 
-Security: no secrets are hard-coded here. Section 12.8 — the credentials.json
-path is taken from GOOGLE_CREDENTIALS_FILE, never embedded.
+Security: no secrets are hard-coded here; credentials are read from environment variables.
 """
 
 import os

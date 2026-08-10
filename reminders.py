@@ -26,8 +26,8 @@ def check_ready_orders():
     try:
         ready = sheets.get_ready_orders()
     except Exception as exc:
-        log.error("Failed to read Orders sheet: %s", exc)
-        notify_admin(f"reminders.py could not read the Orders sheet: {exc}")
+        log.error("Failed to read ready orders: %s", exc)
+        notify_admin(f"reminders.py could not read ready orders: {exc}")
         return 0
 
     notified = 0

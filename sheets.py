@@ -2,11 +2,14 @@
 from datetime import datetime, timezone
 import json
 
-from sqlalchemy import select, func
-from sqlalchemy.orm import joinedload
+def _load_db():
+    global select, func, joinedload, session_scope
+    global Customer, MenuCategory, MenuItem, Order, OrderItem, Payment
+    from sqlalchemy import select, func
+    from sqlalchemy.orm import joinedload
+    from db import session_scope
+    from models import Customer, MenuCategory, MenuItem, Order, OrderItem, Payment
 
-from db import session_scope
-from models import Customer, MenuCategory, MenuItem, Order, OrderItem, Payment
 from logger import get_logger
 
 log = get_logger("sheets")
@@ -27,6 +30,7 @@ def _menu_item(item):
 
 
 def get_menu():
+    _load_db()
     with session_scope() as s:
         rows = s.execute(select(MenuItem).join(MenuCategory).order_by(MenuCategory.sort_order, MenuItem.id)).scalars().all()
         return [_menu_item(i) for i in rows]
@@ -66,6 +70,7 @@ def _record(order):
 
 
 def _find(s, ref):
+    _load_db()
     return s.execute(select(Order).options(joinedload(Order.customer), joinedload(Order.items), joinedload(Order.payments)).where(Order.order_reference == str(ref).strip())).unique().scalar_one_or_none()
 
 
@@ -80,12 +85,14 @@ def find_order_by_ref(order_ref):
 
 
 def find_order_by_phone(phone):
+    _load_db()
     with session_scope() as s:
         o = s.execute(select(Order).join(Customer).options(joinedload(Order.customer), joinedload(Order.items), joinedload(Order.payments)).where(Customer.phone == str(phone).strip()).order_by(Order.created_at.desc())).unique().scalars().first()
         return _record(o) if o else None
 
 
 def find_order_by_payment_ref(payment_ref):
+    _load_db()
     with session_scope() as s:
         p = s.execute(select(Payment).options(joinedload(Payment.order).joinedload(Order.customer), joinedload(Payment.order).joinedload(Order.items)).where(Payment.provider_reference == str(payment_ref).strip())).unique().scalar_one_or_none()
         return (p.order.id, _record(p.order)) if p else (None, None)
@@ -97,6 +104,7 @@ def payment_ref_processed(payment_ref):
 
 
 def append_order(order_ref, phone, name, email, cart, total, conversation_id=None, fulfilment=None):
+    _load_db()
     with session_scope() as s:
         customer = s.execute(select(Customer).where(Customer.phone == phone)).scalar_one_or_none()
         if customer is None:
@@ -111,6 +119,7 @@ def append_order(order_ref, phone, name, email, cart, total, conversation_id=Non
 
 
 def mark_order_paid(order_ref, payment_ref, amount_kobo=None, metadata=None):
+    _load_db()
     with session_scope() as s:
         o = _find(s, order_ref)
         if not o: return False
@@ -125,6 +134,7 @@ def mark_order_paid(order_ref, payment_ref, amount_kobo=None, metadata=None):
 
 
 def get_ready_orders():
+    _load_db()
     with session_scope() as s:
         rows = s.execute(select(Order).options(joinedload(Order.customer), joinedload(Order.items), joinedload(Order.payments)).where(func.lower(Order.status) == "ready", Order.ready_notified.is_(False))).unique().scalars().all()
         return [(o.id, _record(o)) for o in rows]
