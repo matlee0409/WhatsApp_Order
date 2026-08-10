@@ -43,7 +43,7 @@ def _dashboard_data():
             .order_by(Order.created_at.desc())
         ).unique().scalars().all()
         items = session.execute(
-            select(MenuItem).options(joinedload(MenuItem.category)).order_by(MenuItem.id)
+            select(MenuItem).options(joinedload(MenuItem.category), joinedload(MenuItem.image)).order_by(MenuItem.id)
         ).scalars().all()
         categories = session.execute(
             select(MenuCategory).options(joinedload(MenuCategory.items)).order_by(MenuCategory.sort_order, MenuCategory.id)
@@ -61,6 +61,7 @@ def _dashboard_data():
             "category": item.category.name,
             "price": (item.price_kobo or 0) / 100,
             "description": item.description or "",
+            "image_url": f"/media/products/{item.id}" if item.image else "",
             "stock": 0,
             "active": bool(item.is_available),
             "initials": "".join(part[0] for part in item.name.split()[:2]).upper(),

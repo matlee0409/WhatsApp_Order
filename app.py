@@ -26,7 +26,7 @@ import zernio
 from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
 from db import session_scope
-from models import MenuCategory, MenuItem
+from models import MenuCategory, MenuItem, MenuItemImage
 from logger import get_logger
 from notifier import notify_admin
 from paystack import parse_event, verify_signature
@@ -215,6 +215,38 @@ def dashboard_page(page):
         **dashboard_context(page, session.get("zernio_connection")),
         zernio_configured=bool(config.ZERNIO_API_KEY),
     )
+
+
+@app.get("/media/products/<int:item_id>")
+def product_image(item_id):
+    with session_scope() as db_session:
+        image = db_session.query(MenuItemImage).filter_by(menu_item_id=item_id).first()
+        if image is None:
+            return Response(status=404)
+        return Response(image.data, mimetype=image.mime_type, headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.post("/dashboard/menu-items/<int:item_id>/image")
+@dashboard_required
+def upload_menu_item_image(item_id):
+    upload = request.files.get("image")
+    if upload is None or not upload.mimetype.startswith("image/"):
+        return jsonify(error="Choose an image file."), 400
+    data = upload.read()
+    if not data or len(data) > 5 * 1024 * 1024:
+        return jsonify(error="Images must be smaller than 5 MB."), 400
+    with session_scope() as db_session:
+        item = db_session.get(MenuItem, item_id)
+        if item is None:
+            return jsonify(error="Menu item not found."), 404
+        image = db_session.query(MenuItemImage).filter_by(menu_item_id=item_id).first()
+        if image is None:
+            image = MenuItemImage(menu_item_id=item_id, mime_type=upload.mimetype, data=data)
+            db_session.add(image)
+        else:
+            image.mime_type = upload.mimetype
+            image.data = data
+    return jsonify(ok=True, image_url=f"/media/products/{item_id}")
 
 
 @app.post("/dashboard/menu-items/<int:item_id>")

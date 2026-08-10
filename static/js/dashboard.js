@@ -76,6 +76,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const response = await fetch(`/dashboard/menu-items/${productModal.dataset.itemId}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
     if (!response.ok) return showToast((await response.json()).error || 'Unable to save product')
+    const image = productModal.querySelector('[name="product-image"]').files[0]
+    if (image) {
+      const form = new FormData()
+      form.append('image', image)
+      const imageResponse = await fetch(`/dashboard/menu-items/${productModal.dataset.itemId}/image`, { method: 'POST', body: form })
+      if (!imageResponse.ok) return showToast((await imageResponse.json()).error || 'Unable to upload image')
+    }
     window.location.reload()
   })
 
