@@ -113,7 +113,7 @@ PAGE_TITLES = {
 
 
 def _whatsapp_qr(connection):
-    phone = "".join(char for char in (connection or {}).get("phone", "") if char.isdigit())
+    phone = "".join(char for char in ((connection or {}).get("phone") or "") if char.isdigit())
     if not phone:
         return None, None
     chat_url = f"https://wa.me/{phone}"
