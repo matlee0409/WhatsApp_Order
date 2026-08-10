@@ -12,17 +12,63 @@ import config
 from logger import get_logger
 
 log = get_logger("zernio")
+_profile_id = None
 
 
 def _api_url(path: str) -> str:
     return f"{config.ZERNIO_API_BASE_URL.rstrip('/')}/{path.lstrip('/')}"
 
 
-def get_whatsapp_auth_url() -> tuple[str, str]:
-    """Request the hosted Meta signup URL and state from Zernio."""
+def _zernio_headers():
+    return {
+        "Authorization": f"Bearer {config.require('ZERNIO_API_KEY')}",
+        "Accept": "application/json",
+    }
+
+
+def _profile_from_response(payload):
+    profile = payload.get("profile") or payload.get("data", {}).get("profile") or {}
+    return profile.get("_id") or profile.get("id")
+
+
+def get_or_create_profile() -> str:
+    """Find this deployment's Zernio profile or create it once."""
+    global _profile_id
+    if _profile_id:
+        return _profile_id
+    if config.ZERNIO_PROFILE_ID:
+        _profile_id = config.ZERNIO_PROFILE_ID
+        return _profile_id
+
+    profile_name = config.ZERNIO_PROFILE_NAME or config.BUSINESS_NAME
+    response = requests.get(_api_url("/v1/profiles"), headers=_zernio_headers(), timeout=15)
+    response.raise_for_status()
+    payload = response.json()
+    profiles = payload.get("profiles") or payload.get("data", {}).get("profiles") or []
+    for profile in profiles:
+        if profile.get("name") == profile_name:
+            _profile_id = profile.get("_id") or profile.get("id")
+            if _profile_id:
+                return _profile_id
+
+    response = requests.post(
+        _api_url("/v1/profiles"),
+        headers={**_zernio_headers(), "Content-Type": "application/json"},
+        json={"name": profile_name, "description": "WhatsApp ordering profile"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    _profile_id = _profile_from_response(response.json())
+    if not _profile_id:
+        raise RuntimeError("Zernio did not return the created profile ID")
+    return _profile_id
+
+
+def get_whatsapp_auth_url(redirect_uri: str | None = None) -> tuple[str, str]:
+    """Request the hosted Meta signup URL from Zernio."""
     api_key = config.require("ZERNIO_API_KEY")
-    profile_id = config.require("ZERNIO_PROFILE_ID")
-    redirect_uri = config.require("ZERNIO_REDIRECT_URI")
+    profile_id = get_or_create_profile()
+    redirect_uri = redirect_uri or config.require("ZERNIO_REDIRECT_URI")
     response = requests.get(
         _api_url("/v1/connect/whatsapp"),
         params={"profileId": profile_id, "redirect_url": redirect_uri},

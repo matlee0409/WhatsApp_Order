@@ -231,7 +231,7 @@ def dashboard_page(page):
     return render_template(
         "dashboard.html",
         **dashboard_context(page, session.get("zernio_connection")),
-        zernio_configured=all((config.ZERNIO_API_KEY, config.ZERNIO_PROFILE_ID, config.ZERNIO_REDIRECT_URI)),
+        zernio_configured=bool(config.ZERNIO_API_KEY),
     )
 
 
@@ -239,7 +239,9 @@ def dashboard_page(page):
 @dashboard_required
 def zernio_connect():
     try:
-        auth_url, state = zernio.get_whatsapp_auth_url()
+        auth_url, state = zernio.get_whatsapp_auth_url(
+            config.ZERNIO_REDIRECT_URI or url_for("zernio_callback", _external=True)
+        )
     except Exception as exc:
         log.error("Unable to start Zernio WhatsApp connection: %s", exc)
         return redirect(url_for("dashboard_page", page="settings", zernio_error="unavailable"))

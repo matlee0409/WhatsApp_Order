@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import app as app_module
 
@@ -66,17 +66,26 @@ class DashboardAccessTests(unittest.TestCase):
     @patch.object(app_module.config, "ZERNIO_API_KEY", "test-api-key")
     @patch.object(app_module.config, "ZERNIO_PROFILE_ID", "test-profile")
     @patch.object(app_module.config, "ZERNIO_REDIRECT_URI", "https://example.test/dashboard/zernio/callback")
+    @patch.object(app_module.zernio.requests, "post")
     @patch.object(app_module.zernio.requests, "get")
-    def test_zernio_connection_redirects_to_hosted_signup(self, get):
-        get.return_value.json.return_value = {"data": {"authUrl": "https://zernio.example/signup"}}
-        get.return_value.raise_for_status.return_value = None
+    def test_zernio_connection_redirects_to_hosted_signup(self, get, post):
+        profiles = MagicMock()
+        profiles.json.return_value = {"profiles": []}
+        profiles.raise_for_status.return_value = None
+        auth = MagicMock()
+        auth.json.return_value = {"data": {"authUrl": "https://zernio.example/signup"}}
+        auth.raise_for_status.return_value = None
+        get.side_effect = [profiles, auth]
+        post.return_value.json.return_value = {"profile": {"_id": "profile-created"}}
+        post.return_value.raise_for_status.return_value = None
         self.login()
         response = self.client.get("/dashboard/zernio/connect")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.headers["Location"], "https://zernio.example/signup")
         with self.client.session_transaction() as session:
             self.assertTrue(session.get("zernio_oauth_state"))
-        get.assert_called_once()
+        self.assertEqual(get.call_count, 2)
+        post.assert_called_once()
 
     def test_zernio_callback_rejects_invalid_state(self):
         self.login()
