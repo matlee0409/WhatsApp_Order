@@ -47,7 +47,7 @@ def _dashboard_data():
         ).scalars().all()
         categories = session.execute(
             select(MenuCategory).options(joinedload(MenuCategory.items)).order_by(MenuCategory.sort_order, MenuCategory.id)
-        ).scalars().all()
+        ).unique().scalars().all()
         payments = session.execute(
             select(Payment)
             .options(joinedload(Payment.order).joinedload(Order.customer))
