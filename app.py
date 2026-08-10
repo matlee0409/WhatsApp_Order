@@ -36,6 +36,7 @@ log = get_logger("app")
 app = Flask(__name__)
 app.secret_key = config.FLASK_SECRET_KEY or ("preview-only-secret" if not config.is_production() else secrets.token_hex(32))
 app.config.update(
+    MAX_CONTENT_LENGTH=5 * 1024 * 1024,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=config.is_production(),
@@ -232,9 +233,17 @@ def upload_menu_item_image(item_id):
     upload = request.files.get("image")
     if upload is None or not upload.mimetype.startswith("image/"):
         return jsonify(error="Choose an image file."), 400
-    data = upload.read()
+    data = upload.read(5 * 1024 * 1024 + 1)
+    signatures = {
+        "image/jpeg": data.startswith(b"\xff\xd8\xff"),
+        "image/png": data.startswith(b"\x89PNG\r\n\x1a\n"),
+        "image/gif": data.startswith((b"GIF87a", b"GIF89a")),
+        "image/webp": data.startswith(b"RIFF") and data[8:12] == b"WEBP",
+    }
     if not data or len(data) > 5 * 1024 * 1024:
         return jsonify(error="Images must be smaller than 5 MB."), 400
+    if not signatures.get(upload.mimetype, False):
+        return jsonify(error="Upload a valid JPG, PNG, GIF, or WebP image."), 400
     with session_scope() as db_session:
         item = db_session.get(MenuItem, item_id)
         if item is None:
