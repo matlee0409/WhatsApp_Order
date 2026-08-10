@@ -31,7 +31,7 @@
 
       {% elif page == 'analytics' %}
       <section class="empty-page panel"><span class="empty-icon">—</span><h2>No analytics yet</h2><p>Analytics will appear here once your first orders are received.</p></section>
-      
+
       {% elif page == 'products' %}
       <section class="summary-strip"><div><span>Menu items</span><strong>{{ products|length }}</strong></div><div><span>Available now</span><strong>{{ products|selectattr('active')|list|length }}</strong></div><div><span>Low stock</span><strong>{{ products|selectattr('stock','lt',6)|list|length }}</strong></div><div><span>Categories</span><strong>{{ categories|length }}</strong></div></section>
       <section class="toolbar"><label class="search-field"><span>⌕</span><span class="sr-only">Search products</span><input type="search" placeholder="Search products" data-product-search></label><select data-product-filter aria-label="Filter category"><option value="all">All categories</option>{% for category in categories %}<option value="{{ category.name|lower }}">{{ category.name }}</option>{% endfor %}</select></section>
