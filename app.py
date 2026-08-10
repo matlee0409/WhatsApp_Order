@@ -205,7 +205,7 @@ def dashboard_home():
 @app.get("/dashboard/<page>")
 @dashboard_required
 def dashboard_page(page):
-    allowed = {"orders", "analytics", "products", "catalog", "payments", "settings", "templates", "support"}
+    allowed = {"orders", "analytics", "products", "catalog", "payments", "settings", "support"}
     if page not in allowed:
         return jsonify(error="Not Found"), 404
     return render_template(

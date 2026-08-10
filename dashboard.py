@@ -93,7 +93,7 @@ def _dashboard_data():
 NAV_ITEMS = [
     ("Operations", [("orders", "Orders", "inbox"), ("analytics", "Analytics", "chart")]),
     ("Organize", [("products", "Products", "box"), ("catalog", "Catalog", "grid"), ("payments", "Payments", "card")]),
-    ("Engage", [("templates", "Templates", "message"), ("support", "Support", "help")]),
+    ("Engage", [("support", "Support", "help")]),
 ]
 
 PAGE_TITLES = {
