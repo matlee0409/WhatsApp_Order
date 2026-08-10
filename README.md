@@ -130,19 +130,7 @@ customer is notified exactly once.
 
 ---
 
-## 8. Telegram bot setup (outbound only)
-
-Telegram is used **only** to notify the owner/kitchen — there is no inbound
-Telegram webhook or command in this build.
-
-1. Create a bot with **@BotFather** and copy its token into
-   `TELEGRAM_BOT_TOKEN`.
-2. Send your bot a message, then find your chat id (e.g. via
-   `@userinfobot`) and put it in `TELEGRAM_ADMIN_CHAT_ID`.
-
----
-
-## 9. Configuration
+## 8. Configuration
 
 Copy `.env.example` to `.env` and fill in every value. Don't forget:
 

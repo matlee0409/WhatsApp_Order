@@ -48,15 +48,6 @@ ZERNIO_PROFILE_NAME = _get("ZERNIO_PROFILE_NAME")
 ZERNIO_REDIRECT_URI = _get("ZERNIO_REDIRECT_URI")
 ZERNIO_WEBHOOK_SECRET = _get("ZERNIO_WEBHOOK_SECRET")
 
-# ─── Telegram (OUTBOUND owner notifications only) ──────────────────────────
-TELEGRAM_BOT_TOKEN = _get("TELEGRAM_BOT_TOKEN")
-TELEGRAM_ADMIN_CHAT_ID = _get("TELEGRAM_ADMIN_CHAT_ID")
-
-# ─── Brevo (optional email receipts) ───────────────────────────────────────
-BREVO_API_KEY = _get("BREVO_API_KEY")
-BREVO_SENDER_EMAIL = _get("BREVO_SENDER_EMAIL")
-BREVO_SENDER_NAME = _get("BREVO_SENDER_NAME")
-
 # ─── App ───────────────────────────────────────────────────────────────────
 FLASK_ENV = _get("FLASK_ENV", "production")
 PORT = int(_get("PORT", "5003"))
@@ -73,9 +64,6 @@ FLASK_SECRET_KEY = _get("FLASK_SECRET_KEY")
 # Sanity ceiling on a single order total in Naira (H-4). Orders above this are
 # rejected before a payment link is generated. Configurable via env.
 MAX_ORDER_TOTAL = float(_get("MAX_ORDER_TOTAL", "1000000"))
-
-# Brevo email receipts are optional — enabled only when fully configured.
-EMAIL_ENABLED = bool(BREVO_API_KEY and BREVO_SENDER_EMAIL)
 
 
 def is_production() -> bool:
