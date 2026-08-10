@@ -1,0 +1,17 @@
+-- Initial PostgreSQL schema for the ordering foundation.
+CREATE TABLE restaurant_settings (id SERIAL PRIMARY KEY, key VARCHAR(100) NOT NULL UNIQUE, value TEXT NOT NULL DEFAULT '');
+CREATE TABLE menu_categories (id SERIAL PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, sort_order INTEGER NOT NULL DEFAULT 0, is_active BOOLEAN NOT NULL DEFAULT TRUE);
+CREATE TABLE menu_items (id SERIAL PRIMARY KEY, category_id INTEGER NOT NULL REFERENCES menu_categories(id) ON DELETE RESTRICT, name VARCHAR(160) NOT NULL, description TEXT, price_kobo INTEGER NOT NULL CHECK (price_kobo >= 0), is_available BOOLEAN NOT NULL DEFAULT TRUE);
+CREATE INDEX ix_menu_categories_active_order ON menu_categories(is_active, sort_order);
+CREATE INDEX ix_menu_items_category_available ON menu_items(category_id, is_available);
+CREATE TABLE customers (id SERIAL PRIMARY KEY, phone VARCHAR(32) NOT NULL UNIQUE, name VARCHAR(160), email VARCHAR(254), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE TABLE orders (id SERIAL PRIMARY KEY, order_reference VARCHAR(32) NOT NULL UNIQUE, customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT, status VARCHAR(32) NOT NULL DEFAULT 'pending', total_kobo INTEGER NOT NULL CHECK (total_kobo >= 0), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX ix_orders_customer_created ON orders(customer_id, created_at);
+CREATE INDEX ix_orders_status_created ON orders(status, created_at);
+CREATE TABLE order_items (id SERIAL PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE, menu_item_id INTEGER REFERENCES menu_items(id) ON DELETE SET NULL, item_name VARCHAR(160) NOT NULL, quantity INTEGER NOT NULL CHECK (quantity > 0), unit_price_kobo INTEGER NOT NULL CHECK (unit_price_kobo >= 0));
+CREATE INDEX ix_order_items_order ON order_items(order_id);
+CREATE TABLE payments (id SERIAL PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE RESTRICT, provider VARCHAR(32) NOT NULL DEFAULT 'paystack', provider_reference VARCHAR(160) NOT NULL UNIQUE, amount_kobo INTEGER NOT NULL CHECK (amount_kobo >= 0), status VARCHAR(32) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX ix_payments_order_status ON payments(order_id, status);
+CREATE TABLE notification_deliveries (id SERIAL PRIMARY KEY, order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL, channel VARCHAR(32) NOT NULL, recipient VARCHAR(254) NOT NULL, status VARCHAR(32) NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+CREATE INDEX ix_notification_deliveries_status ON notification_deliveries(status, created_at);
+CREATE TABLE dashboard_users (id SERIAL PRIMARY KEY, username VARCHAR(100) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());

@@ -39,6 +39,12 @@ PAYSTACK_WEBHOOK_SECRET = _get("PAYSTACK_WEBHOOK_SECRET")
 GOOGLE_SPREADSHEET_ID = _get("GOOGLE_SPREADSHEET_ID")
 GOOGLE_CREDENTIALS_FILE = _get("GOOGLE_CREDENTIALS_FILE", "credentials.json")
 
+# ─── PostgreSQL / Redis ─────────────────────────────────────────────────────
+# SQLite and local Redis defaults keep imports and development previews usable;
+# production requires explicit network-backed services below.
+DATABASE_URL = _get("DATABASE_URL", "sqlite:///order_bot.db")
+REDIS_URL = _get("REDIS_URL", "redis://localhost:6379/0")
+
 # ─── Zernio WhatsApp connection ────────────────────────────────────────────
 ZERNIO_API_BASE_URL = _get("ZERNIO_API_BASE_URL", "https://zernio.com/api")
 ZERNIO_API_KEY = _get("ZERNIO_API_KEY")
@@ -96,6 +102,10 @@ def check_production_safety() -> None:
             "FLASK_ENV=production. Refusing to start — use a live key."
         )
         raise SystemExit(1)
+    if is_production() and (DATABASE_URL.startswith("sqlite") or not DATABASE_URL):
+        raise RuntimeError("DATABASE_URL must point to PostgreSQL in production")
+    if is_production() and (not REDIS_URL or not REDIS_URL.startswith("redis")):
+        raise RuntimeError("REDIS_URL must point to Redis in production")
 
 
 def require(name: str):
