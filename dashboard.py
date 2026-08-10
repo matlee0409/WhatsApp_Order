@@ -60,6 +60,7 @@ def _dashboard_data():
             "name": item.name,
             "category": item.category.name,
             "price": (item.price_kobo or 0) / 100,
+            "description": item.description or "",
             "stock": 0,
             "active": bool(item.is_available),
             "initials": "".join(part[0] for part in item.name.split()[:2]).upper(),

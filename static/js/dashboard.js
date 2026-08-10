@@ -59,12 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
       productModal.querySelector('[name="product-name"]').value = card.dataset.productName
       productModal.querySelector('[name="product-price"]').value = card.dataset.productPrice
       productModal.querySelector('[name="product-active"]').checked = card.dataset.productActive === 'true'
+      productModal.querySelector('[name="product-description"]').value = card.dataset.productDescription || ''
       const category = productModal.querySelector('[name="product-category"]')
       const matchingCategory = [...category.options].find((option) => option.textContent.trim() === card.querySelector('.category-label')?.textContent.trim())
       if (matchingCategory) category.value = matchingCategory.value
     })
   })
   document.querySelector('[data-save-product]')?.addEventListener('click', async () => {
+    if (!productModal.dataset.itemId) return showToast('Product creation is not available yet')
     const data = {
       name: productModal.querySelector('[name="product-name"]').value,
       category_id: Number(productModal.querySelector('[name="product-category"]').value),
@@ -86,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     })
   })
   document.querySelector('[data-save-category]')?.addEventListener('click', async () => {
+    if (!categoryModal.dataset.categoryId) return showToast('Category creation is not available yet')
     const data = {name: categoryModal.querySelector('[name="category-name"]').value, active: categoryModal.querySelector('[name="category-active"]').checked}
     const response = await fetch(`/dashboard/menu-categories/${categoryModal.dataset.categoryId}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
     if (!response.ok) return showToast((await response.json()).error || 'Unable to save category')
