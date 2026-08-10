@@ -1,4 +1,5 @@
 import unittest
+import unittest
 from unittest.mock import MagicMock, patch
 
 import app as app_module
@@ -55,7 +56,7 @@ class DashboardAccessTests(unittest.TestCase):
     def test_health_and_webhooks_remain_public(self):
         self.assertEqual(self.client.get("/health").status_code, 200)
         # Missing signatures are rejected by the webhook itself, not dashboard auth.
-        self.assertEqual(self.client.post("/whatsapp/webhook").status_code, 403)
+        self.assertEqual(self.client.post("/zernio/webhook").status_code, 403)
         self.assertEqual(self.client.post("/paystack/webhook", data=b"{}").status_code, 401)
 
     def test_zernio_connection_requires_dashboard_login(self):

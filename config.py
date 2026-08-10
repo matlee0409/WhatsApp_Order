@@ -39,12 +39,6 @@ PAYSTACK_WEBHOOK_SECRET = _get("PAYSTACK_WEBHOOK_SECRET")
 GOOGLE_SPREADSHEET_ID = _get("GOOGLE_SPREADSHEET_ID")
 GOOGLE_CREDENTIALS_FILE = _get("GOOGLE_CREDENTIALS_FILE", "credentials.json")
 
-# ─── Twilio WhatsApp ───────────────────────────────────────────────────────
-TWILIO_ACCOUNT_SID = _get("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = _get("TWILIO_AUTH_TOKEN")
-TWILIO_WHATSAPP_FROM = _get("TWILIO_WHATSAPP_FROM")
-PUBLIC_WEBHOOK_URL = _get("PUBLIC_WEBHOOK_URL")
-
 # ─── Zernio WhatsApp connection ────────────────────────────────────────────
 ZERNIO_API_BASE_URL = _get("ZERNIO_API_BASE_URL", "https://zernio.com/api")
 ZERNIO_API_KEY = _get("ZERNIO_API_KEY")
@@ -56,10 +50,6 @@ ZERNIO_WEBHOOK_SECRET = _get("ZERNIO_WEBHOOK_SECRET")
 # ─── Telegram (OUTBOUND owner notifications only) ──────────────────────────
 TELEGRAM_BOT_TOKEN = _get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_ADMIN_CHAT_ID = _get("TELEGRAM_ADMIN_CHAT_ID")
-
-# ─── Anthropic (Claude — order parsing only) ───────────────────────────────
-ANTHROPIC_API_KEY = _get("ANTHROPIC_API_KEY")
-ANTHROPIC_MODEL = _get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 # ─── Brevo (optional email receipts) ───────────────────────────────────────
 BREVO_API_KEY = _get("BREVO_API_KEY")

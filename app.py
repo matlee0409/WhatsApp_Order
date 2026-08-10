@@ -1,4 +1,4 @@
-"""Flask app — TWO inbound webhooks: WhatsApp (Twilio) + Paystack (Section 3).
+"""Flask app — Zernio WhatsApp and Paystack webhooks.
 
 There is deliberately NO Telegram inbound route — Telegram is outbound only
 (Section 13). Both webhooks validate their signatures, are idempotent, and
@@ -22,12 +22,11 @@ from werkzeug.exceptions import HTTPException
 
 import config
 import sheets
-import whatsapp
 import zernio
 from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
 from emailer import send_receipt
-from logger import get_logger, redact_phone
+from logger import get_logger
 from notifier import notify_admin, notify_kitchen
 from paystack import parse_event, verify_signature
 
@@ -41,24 +40,6 @@ app.config.update(
     SESSION_COOKIE_SECURE=config.is_production(),
     PERMANENT_SESSION_LIFETIME=60 * 60 * 12,
 )
-
-# Bounded in-memory store of processed Twilio MessageSids (Section 12.3).
-_MAX_SEEN = 2000
-_seen_sids = deque(maxlen=_MAX_SEEN)
-_seen_set = set()
-
-
-def _already_seen_sid(sid: str) -> bool:
-    if not sid:
-        return False
-    if sid in _seen_set:
-        return True
-    if len(_seen_sids) == _MAX_SEEN:
-        _seen_set.discard(_seen_sids[0])  # evicted oldest
-    _seen_sids.append(sid)
-    _seen_set.add(sid)
-    return False
-
 
 def _valid_phone(phone: str) -> bool:
     """E.164-ish: digits only after optional +, at least 7 digits
@@ -277,6 +258,8 @@ def zernio_webhook():
         return Response("Forbidden", status=403)
     payload = request.get_json(silent=True) or {}
     event = payload.get("data", payload)
+    if not isinstance(event, dict):
+        return Response("", status=200)
     message = event.get("message", event)
     if not isinstance(message, dict):
         message = {}
@@ -290,6 +273,9 @@ def zernio_webhook():
     body = message.get("text") or event.get("text") or ""
     if not _valid_phone(phone) or not account_id or not conversation_id:
         return Response("", status=200)
+    zernio.remember_conversation(phone, account_id, conversation_id)
+    if not _rate.allow(phone):
+        return Response("", status=200)
     try:
         reply = handle_interactive(phone, interaction) if interaction else handle_message(phone, body)
         rich_reply = interactive_payload(phone)
@@ -298,51 +284,6 @@ def zernio_webhook():
         log.error("Zernio webhook processing failed: %s", exc)
         notify_admin(f"Zernio webhook processing failed: {exc}")
     return Response("", status=200)
-
-
-# ─── WhatsApp inbound (Twilio) ──────────────────────────────────────────────
-
-@app.post("/whatsapp/webhook")
-def whatsapp_webhook():
-    # Validate Twilio signature against PUBLIC_WEBHOOK_URL (Section 12.2).
-    signature = request.headers.get("X-Twilio-Signature", "")
-    form = request.form.to_dict()
-    if not whatsapp.validate_twilio_signature(signature, form):
-        log.warning("Rejected WhatsApp webhook: bad Twilio signature")
-        return Response("Forbidden", status=403)
-
-    # Idempotency by MessageSid (Section 12.3).
-    message_sid = form.get("MessageSid", "")
-    if _already_seen_sid(message_sid):
-        log.info("Duplicate WhatsApp message %s ignored", message_sid)
-        return Response("", status=200, mimetype="text/xml")
-
-    raw_from = form.get("From", "")  # e.g. "whatsapp:+2348012345890"
-    phone = raw_from.replace("whatsapp:", "").strip()
-    body = form.get("Body", "")
-
-    if not _valid_phone(phone):
-        log.warning("Rejected WhatsApp webhook: invalid phone %s",
-                    redact_phone(phone))
-        return Response("", status=200, mimetype="text/xml")
-
-    # Per-number rate limit (H-1): beyond the window, ignore silently.
-    if not _rate.allow(phone):
-        log.warning("Rate limit hit for %s — ignoring", redact_phone(phone))
-        return Response("", status=200, mimetype="text/xml")
-
-    try:
-        reply = handle_message(phone, body)
-    except Exception as exc:
-        log.error("Conversation handler error: %s", exc)
-        notify_admin(f"Conversation handler crashed: {exc}")
-        reply = "Sorry, something went wrong. Please try again shortly."
-
-    if reply:
-        whatsapp.send_whatsapp(phone, reply)
-
-    # Empty TwiML — we replied via the REST API above.
-    return Response("<Response></Response>", status=200, mimetype="text/xml")
 
 
 # ─── Paystack inbound ───────────────────────────────────────────────────────
@@ -428,7 +369,7 @@ def _process_successful_charge(order_ref, payment_ref, data):
     phone = record["phone"]
 
     # Customer WhatsApp confirmation (Section 7.3 step 7).
-    whatsapp.send_whatsapp(
+    zernio.send_message_to_phone(
         phone,
         f"Payment confirmed! Your order {resolved_ref} is being prepared.\n"
         f"We will let you know when it is ready for pickup.\n"

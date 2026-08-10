@@ -14,7 +14,7 @@ Ready Notified column (Section 12.6).
 
 import config
 import sheets
-import whatsapp
+import zernio
 from logger import get_logger, redact_phone
 from notifier import notify_admin
 
@@ -42,7 +42,7 @@ def check_ready_orders():
             "See you soon."
         )
 
-        sent = whatsapp.send_whatsapp(phone, message)
+        sent = zernio.send_message_to_phone(phone, message)
         if not sent:
             # Do NOT mark notified — let it retry next run (Section 8 step 4).
             log.error("Pickup WhatsApp failed for %s (%s)",
