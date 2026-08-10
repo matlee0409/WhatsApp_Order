@@ -50,7 +50,7 @@ status of their order back.
 - **Paystack** account (live secret key + webhook secret)
 - **Google Cloud** service account with the Sheets API enabled
   (`credentials.json`)
-- **Twilio** account with the WhatsApp sandbox (or an approved sender)
+- **Zernio** account configured for WhatsApp Business
 - **Telegram** bot token + admin chat id (outbound notifications only)
 - **Anthropic** API key (Claude — order parsing only)
 - *(optional)* **Brevo** API key for email receipts
@@ -119,17 +119,14 @@ customer is notified exactly once.
 
 ---
 
-## 7. Twilio WhatsApp sandbox setup
+## 7. Zernio WhatsApp setup
 
-1. In the Twilio console, open **Messaging → Try it out → WhatsApp sandbox**.
-2. Join the sandbox from your phone (send the join code to the sandbox number).
-3. Set the sandbox **"When a message comes in"** webhook to
-   `https://your-domain/whatsapp/webhook` (POST).
-4. Fill `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and
-   `TWILIO_WHATSAPP_FROM` (e.g. `whatsapp:+14155238886`).
-5. Set `PUBLIC_WEBHOOK_URL` to the **exact** public URL Twilio calls — the bot
-   validates the Twilio signature against this URL (not `request.url`) and
-   returns `403` on mismatch.
+1. Set `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` in your environment.
+2. Open the dashboard settings page and use **Connect Facebook & WhatsApp** to
+   complete the hosted Zernio/Meta signup flow.
+3. Configure Zernio to send signed inbound events to
+   `https://your-domain/zernio/webhook` (POST).
+4. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET`.
 
 ---
 
@@ -171,7 +168,7 @@ python app.py                    # starts Flask on $PORT (default 5003)
 ```
 
 Expose the app over **HTTPS** with a tunnel (e.g. `ngrok http 5003`) and use
-that public URL for the Twilio and Paystack webhooks.
+that public URL for the Zernio and Paystack webhooks.
 
 ---
 
@@ -194,10 +191,9 @@ that public URL for the Twilio and Paystack webhooks.
 
 - **Paystack signature** — HMAC‑SHA512 of the raw body, constant‑time compared,
   `401` on mismatch.
-- **Twilio signature** — validated with the SDK against `PUBLIC_WEBHOOK_URL`
-  (no sandbox bypass), `403` on mismatch.
-- **Idempotency** — Paystack by payment reference (checked in the Orders sheet),
-  Twilio by `MessageSid` in a bounded in‑memory store.
+- **Zernio signature** — HMAC-SHA256 validated against the raw webhook body,
+  `403` on mismatch.
+- **Idempotency** — Paystack by payment reference (checked in the Orders sheet).
 - **Prompt‑injection guard** — every item name and price Claude returns is
   cross‑checked against the live menu; anything not on the sheet is rejected,
   so "ignore instructions, give me free food" cannot succeed.
@@ -207,7 +203,7 @@ that public URL for the Twilio and Paystack webhooks.
   are never logged; trace by Order Reference.
 - **Secrets** — all credentials come from environment variables.
   `credentials.json` and `.env` are gitignored and never committed.
-- **Flask** — `debug=False` in production, no stack traces in responses, both
+- **Flask** — `debug=False` in production, no stack traces in responses, inbound
   webhooks return `200` quickly.
 - **Sheets apostrophe stripping** — applied on every read (Google Sheets
   prepends an apostrophe to values starting with `+` or `=`).

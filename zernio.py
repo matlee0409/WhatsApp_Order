@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import hashlib
 import hmac
 import secrets
+import threading
 
 import requests
 
@@ -13,6 +14,8 @@ from logger import get_logger
 
 log = get_logger("zernio")
 _profile_id = None
+_conversations = {}
+_conversations_lock = threading.Lock()
 
 
 def _api_url(path: str) -> str:
@@ -93,6 +96,21 @@ def verify_webhook_signature(raw_body: bytes, signature: str) -> bool:
     ).hexdigest()
     supplied = signature.removeprefix("sha256=")
     return hmac.compare_digest(digest, supplied)
+
+
+def remember_conversation(phone: str, account_id: str, conversation_id: str) -> None:
+    with _conversations_lock:
+        _conversations[phone] = (account_id, conversation_id)
+
+
+def send_message_to_phone(phone: str, message: str) -> bool:
+    with _conversations_lock:
+        conversation = _conversations.get(phone)
+    if not conversation:
+        log.error("No Zernio conversation found for %s", phone)
+        return False
+    account_id, conversation_id = conversation
+    return send_message(account_id, conversation_id, message)
 
 
 def send_message(account_id: str, conversation_id: str, message: str = "", interactive: dict | None = None) -> bool:

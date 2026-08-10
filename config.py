@@ -39,12 +39,6 @@ PAYSTACK_WEBHOOK_SECRET = _get("PAYSTACK_WEBHOOK_SECRET")
 GOOGLE_SPREADSHEET_ID = _get("GOOGLE_SPREADSHEET_ID")
 GOOGLE_CREDENTIALS_FILE = _get("GOOGLE_CREDENTIALS_FILE", "credentials.json")
 
-# ─── Twilio WhatsApp ───────────────────────────────────────────────────────
-TWILIO_ACCOUNT_SID = _get("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = _get("TWILIO_AUTH_TOKEN")
-TWILIO_WHATSAPP_FROM = _get("TWILIO_WHATSAPP_FROM")
-PUBLIC_WEBHOOK_URL = _get("PUBLIC_WEBHOOK_URL")
-
 # ─── Zernio WhatsApp connection ────────────────────────────────────────────
 ZERNIO_API_BASE_URL = _get("ZERNIO_API_BASE_URL", "https://zernio.com/api")
 ZERNIO_API_KEY = _get("ZERNIO_API_KEY")
