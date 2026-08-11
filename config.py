@@ -89,6 +89,13 @@ def check_production_safety() -> None:
         raise RuntimeError("DATABASE_URL must point to PostgreSQL in production")
     if is_production() and (not REDIS_URL or not REDIS_URL.startswith("redis")):
         raise RuntimeError("REDIS_URL must point to Redis in production")
+    if is_production():
+        for name in ("FLASK_SECRET_KEY", "ZERNIO_WEBHOOK_SECRET"):
+            value = require(name)
+            if value.startswith(("replace_with_", "your_", "<")):
+                raise RuntimeError(
+                    f"{name} contains an example placeholder; generate a persistent value"
+                )
 
 
 def require(name: str):

@@ -8,7 +8,6 @@ stack traces are returned to callers.
 
 import hmac
 import json
-import secrets
 import threading
 import time
 from collections import deque
@@ -36,7 +35,7 @@ log = get_logger("app")
 app = Flask(__name__)
 config.check_production_safety()
 ensure_schema()
-app.secret_key = config.FLASK_SECRET_KEY or ("preview-only-secret" if not config.is_production() else secrets.token_hex(32))
+app.secret_key = config.FLASK_SECRET_KEY or "preview-only-secret"
 app.config.update(
     MAX_CONTENT_LENGTH=5 * 1024 * 1024,
     SESSION_COOKIE_HTTPONLY=True,

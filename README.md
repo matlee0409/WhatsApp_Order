@@ -121,18 +121,27 @@ customer is notified exactly once.
 
 ## 7. Zernio WhatsApp setup
 
-1. Set `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` in your environment.
-2. Open the dashboard settings page and use **Connect Facebook & WhatsApp** to
+1. Set `ZERNIO_API_KEY` in your environment.
+2. Set `ZERNIO_WEBHOOK_SECRET` to the same persistent secret configured in Zernio.
+   In Railway, use the variable's **Generate Value** action, then copy that value
+   into Zernio's webhook signing-secret setting. Do not generate a new value on
+   each deployment or boot.
+3. Open the dashboard settings page and use **Connect Facebook & WhatsApp** to
    complete the hosted Zernio/Meta signup flow.
-3. Configure Zernio to send signed inbound events to
+4. Configure Zernio to send signed inbound events to
    `https://your-domain/zernio/webhook` (POST).
-4. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET`.
+5. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET`.
 
 ---
 
 ## 8. Configuration
 
-Copy `.env.example` to `.env` and fill in every value. Don't forget:
+Copy `.env.example` to `.env` and fill in every value. For Railway, create
+`FLASK_SECRET_KEY` and `ZERNIO_WEBHOOK_SECRET` with the variable editor's
+**Generate Value** action and leave those generated values unchanged across
+redeployments. Railway variable references such as `${{ secret() }}` are not
+required for this app; the important part is that the values are persistent and
+match the corresponding provider configuration. Don't forget:
 
 - `PICKUP_ADDRESS` — shown to customers in confirmation and pickup messages.
 - `BUSINESS_NAME` — used in the greeting and receipts.
