@@ -33,3 +33,8 @@ def session_scope():
 def get_session() -> Session:
     """Return a caller-owned database session."""
     return SessionLocal()
+
+
+def ensure_schema() -> None:
+    """Create missing tables without modifying existing data."""
+    Base.metadata.create_all(bind=engine)

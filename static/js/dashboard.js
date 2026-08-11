@@ -49,6 +49,58 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-modal-close]').forEach((button) => {
     button.addEventListener('click', () => closeModal(button.closest('.modal')))
   })
+
+  const productModal = document.querySelector('#product-modal')
+  document.querySelectorAll('[data-edit-product]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const card = button.closest('[data-product-card]')
+      if (!productModal || !card) return
+      productModal.dataset.itemId = card.dataset.productId
+      productModal.querySelector('[name="product-name"]').value = card.dataset.productName
+      productModal.querySelector('[name="product-price"]').value = card.dataset.productPrice
+      productModal.querySelector('[name="product-active"]').checked = card.dataset.productActive === 'true'
+      productModal.querySelector('[name="product-description"]').value = card.dataset.productDescription || ''
+      const category = productModal.querySelector('[name="product-category"]')
+      const matchingCategory = [...category.options].find((option) => option.textContent.trim() === card.querySelector('.category-label')?.textContent.trim())
+      if (matchingCategory) category.value = matchingCategory.value
+    })
+  })
+  document.querySelector('[data-save-product]')?.addEventListener('click', async () => {
+    if (!productModal.dataset.itemId) return showToast('Product creation is not available yet')
+    const data = {
+      name: productModal.querySelector('[name="product-name"]').value,
+      category_id: Number(productModal.querySelector('[name="product-category"]').value),
+      price: productModal.querySelector('[name="product-price"]').value,
+      active: productModal.querySelector('[name="product-active"]').checked,
+      description: productModal.querySelector('[name="product-description"]').value,
+    }
+    const response = await fetch(`/dashboard/menu-items/${productModal.dataset.itemId}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
+    if (!response.ok) return showToast((await response.json()).error || 'Unable to save product')
+    const image = productModal.querySelector('[name="product-image"]').files[0]
+    if (image) {
+      const form = new FormData()
+      form.append('image', image)
+      const imageResponse = await fetch(`/dashboard/menu-items/${productModal.dataset.itemId}/image`, { method: 'POST', body: form })
+      if (!imageResponse.ok) return showToast((await imageResponse.json()).error || 'Unable to upload image')
+    }
+    window.location.reload()
+  })
+
+  const categoryModal = document.querySelector('#category-modal')
+  document.querySelectorAll('[data-edit-category]').forEach((button) => {
+    button.addEventListener('click', () => {
+      categoryModal.dataset.categoryId = button.dataset.categoryId
+      categoryModal.querySelector('[name="category-name"]').value = button.dataset.categoryName
+      categoryModal.querySelector('[name="category-active"]').checked = button.dataset.categoryActive === 'true'
+    })
+  })
+  document.querySelector('[data-save-category]')?.addEventListener('click', async () => {
+    if (!categoryModal.dataset.categoryId) return showToast('Category creation is not available yet')
+    const data = {name: categoryModal.querySelector('[name="category-name"]').value, active: categoryModal.querySelector('[name="category-active"]').checked}
+    const response = await fetch(`/dashboard/menu-categories/${categoryModal.dataset.categoryId}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
+    if (!response.ok) return showToast((await response.json()).error || 'Unable to save category')
+    window.location.reload()
+  })
   document.querySelectorAll('.modal').forEach((modal) => {
     modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(modal) })
   })

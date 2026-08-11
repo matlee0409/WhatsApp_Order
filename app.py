@@ -25,6 +25,8 @@ import sheets
 import zernio
 from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
+from db import ensure_schema, session_scope
+from models import MenuCategory, MenuItem, MenuItemImage
 from logger import get_logger
 from notifier import notify_admin
 from paystack import parse_event, verify_signature
@@ -32,8 +34,11 @@ from paystack import parse_event, verify_signature
 log = get_logger("app")
 
 app = Flask(__name__)
+config.check_production_safety()
+ensure_schema()
 app.secret_key = config.FLASK_SECRET_KEY or ("preview-only-secret" if not config.is_production() else secrets.token_hex(32))
 app.config.update(
+    MAX_CONTENT_LENGTH=5 * 1024 * 1024,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=config.is_production(),
@@ -205,7 +210,7 @@ def dashboard_home():
 @app.get("/dashboard/<page>")
 @dashboard_required
 def dashboard_page(page):
-    allowed = {"orders", "analytics", "products", "catalog", "payments", "settings", "templates", "support"}
+    allowed = {"orders", "analytics", "products", "catalog", "payments", "settings", "support"}
     if page not in allowed:
         return jsonify(error="Not Found"), 404
     return render_template(
@@ -213,6 +218,87 @@ def dashboard_page(page):
         **dashboard_context(page, session.get("zernio_connection")),
         zernio_configured=bool(config.ZERNIO_API_KEY),
     )
+
+
+@app.get("/media/products/<int:item_id>")
+def product_image(item_id):
+    with session_scope() as db_session:
+        image = db_session.query(MenuItemImage).filter_by(menu_item_id=item_id).first()
+        if image is None:
+            return Response(status=404)
+        return Response(image.data, mimetype=image.mime_type, headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.post("/dashboard/menu-items/<int:item_id>/image")
+@dashboard_required
+def upload_menu_item_image(item_id):
+    upload = request.files.get("image")
+    if upload is None or not upload.mimetype.startswith("image/"):
+        return jsonify(error="Choose an image file."), 400
+    data = upload.read(5 * 1024 * 1024 + 1)
+    signatures = {
+        "image/jpeg": data.startswith(b"\xff\xd8\xff"),
+        "image/png": data.startswith(b"\x89PNG\r\n\x1a\n"),
+        "image/gif": data.startswith((b"GIF87a", b"GIF89a")),
+        "image/webp": data.startswith(b"RIFF") and data[8:12] == b"WEBP",
+    }
+    if not data or len(data) > 5 * 1024 * 1024:
+        return jsonify(error="Images must be smaller than 5 MB."), 400
+    if not signatures.get(upload.mimetype, False):
+        return jsonify(error="Upload a valid JPG, PNG, GIF, or WebP image."), 400
+    with session_scope() as db_session:
+        item = db_session.get(MenuItem, item_id)
+        if item is None:
+            return jsonify(error="Menu item not found."), 404
+        image = db_session.query(MenuItemImage).filter_by(menu_item_id=item_id).first()
+        if image is None:
+            image = MenuItemImage(menu_item_id=item_id, mime_type=upload.mimetype, data=data)
+            db_session.add(image)
+        else:
+            image.mime_type = upload.mimetype
+            image.data = data
+    return jsonify(ok=True, image_url=f"/media/products/{item_id}")
+
+
+@app.post("/dashboard/menu-items/<int:item_id>")
+@dashboard_required
+def update_menu_item(item_id):
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    category_id = payload.get("category_id")
+    try:
+        price_kobo = int(round(float(payload.get("price")) * 100))
+    except (TypeError, ValueError):
+        return jsonify(error="Enter a valid price."), 400
+    if not name or price_kobo < 0 or not isinstance(category_id, int):
+        return jsonify(error="Name, category, and price are required."), 400
+    with session_scope() as db_session:
+        item = db_session.get(MenuItem, item_id)
+        category = db_session.get(MenuCategory, category_id)
+        if item is None or category is None:
+            return jsonify(error="Menu item or category not found."), 404
+        item.name = name
+        item.description = (payload.get("description") or "").strip() or None
+        item.price_kobo = price_kobo
+        item.category = category
+        item.is_available = bool(payload.get("active"))
+    return jsonify(ok=True)
+
+
+@app.post("/dashboard/menu-categories/<int:category_id>")
+@dashboard_required
+def update_menu_category(category_id):
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify(error="Category name is required."), 400
+    with session_scope() as db_session:
+        category = db_session.get(MenuCategory, category_id)
+        if category is None:
+            return jsonify(error="Category not found."), 404
+        category.name = name
+        category.is_active = bool(payload.get("active"))
+    return jsonify(ok=True)
 
 
 @app.get("/dashboard/zernio/connect")

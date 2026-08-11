@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db import Base
@@ -35,7 +35,17 @@ class MenuItem(Base):
     price_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     is_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     category: Mapped[MenuCategory] = relationship(back_populates="items")
+    image: Mapped["MenuItemImage | None"] = relationship(back_populates="menu_item", uselist=False, cascade="all, delete-orphan")
     __table_args__ = (Index("ix_menu_items_category_available", "category_id", "is_available"),)
+
+
+class MenuItemImage(Base):
+    __tablename__ = "menu_item_images"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    menu_item_id: Mapped[int] = mapped_column(ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False, unique=True)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    menu_item: Mapped[MenuItem] = relationship(back_populates="image")
 
 
 class Customer(Base):
