@@ -116,7 +116,10 @@ customer is notified exactly once.
    complete the hosted Zernio/Meta signup flow.
 4. Configure Zernio to send signed inbound events to
    `https://your-domain/zernio/webhook` (POST).
-5. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET` and enable cart order events. The Meta catalog must already be connected to the WABA and contain products whose retailer IDs match the app menu IDs. Product images must be present in that Meta catalog; images saved only in this app database are not visible in WhatsApp.
+5. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET` and enable cart order events.
+6. In Meta Commerce Manager, create or select a catalog and add a scheduled data source using `https://your-domain/meta/catalog-feed.csv`. The feed contains the dashboard menu, stable retailer IDs, prices, availability, and public product image URLs. Connect that catalog to the WABA, then send one catalog interaction so the app can capture the returned `catalog_id` automatically.
+
+The Meta catalog must be connected to the WABA and must ingest the feed before native WhatsApp product messages can display. Images saved in this app are exposed through the feed; they are not visible in WhatsApp until Meta imports them.
 
 ---
 

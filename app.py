@@ -6,7 +6,9 @@ return 200 quickly (Section 12.9). debug is forced off in production and no
 stack traces are returned to callers.
 """
 
+import csv
 import hmac
+import io
 import threading
 import time
 from collections import deque
@@ -136,6 +138,36 @@ def _security_headers(response):
 @app.get("/health")
 def health():
     return {"status": "ok"}, 200
+
+
+@app.get("/meta/catalog-feed.csv")
+def meta_catalog_feed():
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=["id", "title", "description", "availability", "condition", "price", "link", "image_link", "brand"],
+    )
+    writer.writeheader()
+    with session_scope() as db_session:
+        items = (
+            db_session.query(MenuItem)
+            .join(MenuCategory)
+            .order_by(MenuCategory.sort_order, MenuItem.id)
+            .all()
+        )
+        for item in items:
+            writer.writerow({
+                "id": f"menu-item-{item.id}",
+                "title": item.name,
+                "description": item.description or item.name,
+                "availability": "in stock" if item.is_available else "out of stock",
+                "condition": "new",
+                "price": f"{item.price_kobo / 100:.2f} NGN",
+                "link": url_for("dashboard_page", page="catalog", _external=True),
+                "image_link": url_for("product_image", item_id=item.id, _external=True) if item.image else "",
+                "brand": config.BUSINESS_NAME,
+            })
+    return Response(output.getvalue(), mimetype="text/csv")
 
 
 _login_rate = _RateLimiter(limit=8, window=300)
