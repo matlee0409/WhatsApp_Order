@@ -34,6 +34,7 @@ from paystack import parse_event, verify_signature
 log = get_logger("app")
 
 app = Flask(__name__)
+config.check_production_safety()
 ensure_schema()
 app.secret_key = config.FLASK_SECRET_KEY or ("preview-only-secret" if not config.is_production() else secrets.token_hex(32))
 app.config.update(
