@@ -77,6 +77,32 @@ class DashboardAccessTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "example placeholder"):
                 app_module.config.check_production_safety()
 
+    @patch.object(app_module.zernio, "send_message")
+    @patch.object(app_module, "interactive_payload", return_value=None)
+    @patch.object(app_module, "handle_message", return_value="Hello")
+    @patch.object(app_module.zernio, "remember_conversation")
+    @patch.object(app_module.zernio, "verify_webhook_signature", return_value=True)
+    def test_zernio_webhook_handles_documented_message_payload(
+        self, verify, remember, handle, payload, send
+    ):
+        response = self.client.post(
+            "/zernio/webhook",
+            json={
+                "event": "message.received",
+                "data": {
+                    "sender": {"phone": "+15551234567"},
+                    "accountId": "account-id",
+                    "conversationId": "conversation-id",
+                    "message": {"text": "hi"},
+                },
+            },
+            headers={"X-Zernio-Signature": "signature"},
+        )
+        self.assertEqual(response.status_code, 200)
+        remember.assert_called_once_with("+15551234567", "account-id", "conversation-id")
+        handle.assert_called_once_with("+15551234567", "hi")
+        send.assert_called_once_with("account-id", "conversation-id", "Hello", None)
+
     def test_zernio_connection_requires_dashboard_login(self):
         response = self.client.get("/dashboard/zernio/connect")
         self.assertEqual(response.status_code, 302)

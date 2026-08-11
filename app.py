@@ -348,12 +348,24 @@ def zernio_webhook():
     if not isinstance(message, dict):
         message = {}
     contact = event.get("contact", {}) or {}
+    sender = event.get("sender", {}) or {}
     account = event.get("account", {}) or {}
-    phone = (event.get("from") or contact.get("phoneNumber") or "").strip()
+    phone = (
+        event.get("from")
+        or sender.get("phone")
+        or contact.get("phone")
+        or contact.get("phoneNumber")
+        or ""
+    ).strip()
     account_id = event.get("accountId") or account.get("accountId")
     conversation = event.get("conversation", {}) or {}
     conversation_id = event.get("conversationId") or conversation.get("id")
-    interaction = message.get("interactive") or event.get("interactive") or event.get("metadata")
+    interaction = (
+        message.get("interactive")
+        or message.get("metadata")
+        or event.get("interactive")
+        or event.get("metadata")
+    )
     body = message.get("text") or event.get("text") or ""
     if not _valid_phone(phone) or not account_id or not conversation_id:
         return Response("", status=200)

@@ -44,8 +44,8 @@ def cart_actions():
         "type": "button",
         "body": {"text": "What would you like to do next?"},
         "action": {"buttons": [
-            {"title": "Add more", "payload": "MORE"},
-            {"title": "Checkout", "payload": "DONE"},
+            {"type": "reply", "reply": {"id": "MORE", "title": "Add more"}},
+            {"type": "reply", "reply": {"id": "DONE", "title": "Checkout"}},
         ]},
     }
 
@@ -55,8 +55,8 @@ def confirmation_actions():
         "type": "button",
         "body": {"text": "Confirm your order?"},
         "action": {"buttons": [
-            {"title": "Confirm", "payload": "YES"},
-            {"title": "Cancel", "payload": "CANCEL"},
+            {"type": "reply", "reply": {"id": "YES", "title": "Confirm"}},
+            {"type": "reply", "reply": {"id": "CANCEL", "title": "Cancel"}},
         ]},
     }
 
@@ -66,8 +66,8 @@ def fulfilment_actions():
         "type": "button",
         "body": {"text": "Choose the delivery option to continue."},
         "action": {"buttons": [
-            {"title": "Delivery", "payload": "DELIVERY"},
-            {"title": "Pick up", "payload": "PICKUP"},
+            {"type": "reply", "reply": {"id": "DELIVERY", "title": "Delivery"}},
+            {"type": "reply", "reply": {"id": "PICKUP", "title": "Pick up"}},
         ]},
     }
 
