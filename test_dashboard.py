@@ -57,7 +57,50 @@ class DashboardAccessTests(unittest.TestCase):
         self.assertEqual(self.client.get("/health").status_code, 200)
         # Missing signatures are rejected by the webhook itself, not dashboard auth.
         self.assertEqual(self.client.post("/zernio/webhook").status_code, 403)
-        self.assertEqual(self.client.post("/paystack/webhook", data=b"{}").status_code, 401)
+
+    def test_production_requires_persistent_webhook_and_flask_secrets(self):
+        with patch.object(app_module.config, "FLASK_ENV", "production"), \
+             patch.object(app_module.config, "DATABASE_URL", "postgresql+psycopg://db"), \
+             patch.object(app_module.config, "REDIS_URL", "redis://redis"), \
+             patch.object(app_module.config, "FLASK_SECRET_KEY", None), \
+             patch.object(app_module.config, "ZERNIO_WEBHOOK_SECRET", None), \
+             patch.object(app_module.config, "ZERNIO_CATALOG_ID", "catalog-id"):
+            with self.assertRaisesRegex(RuntimeError, "FLASK_SECRET_KEY"):
+                app_module.config.check_production_safety()
+
+            app_module.config.FLASK_SECRET_KEY = "persistent-flask-secret"
+            with self.assertRaisesRegex(RuntimeError, "ZERNIO_WEBHOOK_SECRET"):
+                app_module.config.check_production_safety()
+
+            app_module.config.ZERNIO_WEBHOOK_SECRET = "<Generate Value>"
+            with self.assertRaisesRegex(RuntimeError, "example placeholder"):
+                app_module.config.check_production_safety()
+
+    @patch.object(app_module.zernio, "send_message")
+    @patch.object(app_module, "interactive_payload", return_value=None)
+    @patch.object(app_module, "handle_message", return_value="Hello")
+    @patch.object(app_module.zernio, "remember_conversation")
+    @patch.object(app_module.zernio, "verify_webhook_signature", return_value=True)
+    def test_zernio_webhook_handles_documented_message_payload(
+        self, verify, remember, handle, payload, send
+    ):
+        response = self.client.post(
+            "/zernio/webhook",
+            json={
+                "event": "message.received",
+                "data": {
+                    "sender": {"phone": "+15551234567"},
+                    "accountId": "account-id",
+                    "conversationId": "conversation-id",
+                    "message": {"text": "hi"},
+                },
+            },
+            headers={"X-Zernio-Signature": "signature"},
+        )
+        self.assertEqual(response.status_code, 200)
+        remember.assert_called_once_with("+15551234567", "account-id", "conversation-id")
+        handle.assert_called_once_with("+15551234567", "hi")
+        send.assert_called_once_with("account-id", "conversation-id", "Hello", None)
 
     def test_zernio_connection_requires_dashboard_login(self):
         response = self.client.get("/dashboard/zernio/connect")

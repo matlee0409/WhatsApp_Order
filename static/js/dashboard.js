@@ -87,6 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
   })
 
   const categoryModal = document.querySelector('#category-modal')
+  document.querySelectorAll('[data-modal-open="category"]:not([data-edit-category])').forEach((button) => {
+    button.addEventListener('click', () => {
+      delete categoryModal.dataset.categoryId
+      categoryModal.querySelector('[name="category-name"]').value = ''
+      categoryModal.querySelector('[name="category-active"]').checked = true
+      categoryModal.querySelector('[name="category-image"]').value = ''
+    })
+  })
   document.querySelectorAll('[data-edit-category]').forEach((button) => {
     button.addEventListener('click', () => {
       categoryModal.dataset.categoryId = button.dataset.categoryId
@@ -95,10 +103,19 @@ document.addEventListener('DOMContentLoaded', () => {
     })
   })
   document.querySelector('[data-save-category]')?.addEventListener('click', async () => {
-    if (!categoryModal.dataset.categoryId) return showToast('Category creation is not available yet')
     const data = {name: categoryModal.querySelector('[name="category-name"]').value, active: categoryModal.querySelector('[name="category-active"]').checked}
-    const response = await fetch(`/dashboard/menu-categories/${categoryModal.dataset.categoryId}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
+    const categoryId = categoryModal.dataset.categoryId
+    const endpoint = categoryId ? `/dashboard/menu-categories/${categoryId}` : '/dashboard/menu-categories'
+    const response = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
     if (!response.ok) return showToast((await response.json()).error || 'Unable to save category')
+    const result = await response.json()
+    const image = categoryModal.querySelector('[name="category-image"]').files[0]
+    if (image) {
+      const form = new FormData()
+      form.append('image', image)
+      const imageResponse = await fetch(`/dashboard/menu-categories/${categoryId || result.category_id}/image`, { method: 'POST', body: form })
+      if (!imageResponse.ok) return showToast((await imageResponse.json()).error || 'Unable to upload category image')
+    }
     window.location.reload()
   })
   document.querySelectorAll('.modal').forEach((modal) => {

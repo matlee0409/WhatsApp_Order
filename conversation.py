@@ -11,8 +11,7 @@ menu. Customer text is untrusted (Section 12.4): order references are validated
 before any lookup.
 
 handle_message(phone, body) -> reply string. The caller (app.py) sends the reply
-over WhatsApp. Side effects (Sheets write, Paystack link) happen inline at
-checkout.
+over WhatsApp. The order is written to Sheets inline at checkout.
 """
 
 import json
@@ -39,7 +38,6 @@ import sheets
 import interactive
 from logger import get_logger, redact_phone
 from notifier import notify_admin
-from paystack import generate_payment_link
 
 log = get_logger("conversation")
 
@@ -349,10 +347,58 @@ def handle_interactive(phone, interaction):
     return handle_message(phone, command)
 
 
+def handle_catalog_order(phone, order):
+    """Validate a native WhatsApp catalog cart against the live menu."""
+    product_items = order.get("product_items") if isinstance(order, dict) else None
+    if not isinstance(product_items, list) or not product_items:
+        return handle_message(phone, "hi")
+
+    available = {
+        item["retailer_id"]: item for item in sheets.get_available_menu()
+    }
+    cart = []
+    for product in product_items:
+        if not isinstance(product, dict):
+            continue
+        item = available.get(str(product.get("product_retailer_id") or ""))
+        try:
+            quantity = int(product.get("quantity"))
+        except (TypeError, ValueError):
+            quantity = 0
+        if item is None or quantity <= 0 or quantity > 99:
+            continue
+        cart.append({
+            "name": item["name"],
+            "quantity": quantity,
+            "unit_price": item["price"],
+            "line_total": item["price"] * quantity,
+        })
+
+    if not cart:
+        return "I could not match those products to our current menu. Please send hi to browse again."
+
+    session = _get_session(phone)
+    _reset(session)
+    session["cart"] = cart
+    session["state"] = AWAITING_FULFILMENT
+    return (
+        f"Cart received:\n{_cart_block(cart)}\n"
+        f"Total: {_naira(_cart_total(cart))}\n\n"
+        "Choose delivery or pickup to continue."
+    )
+
+
 def interactive_payload(phone):
     session = _get_session(phone)
     state = session["state"]
     if state == AWAITING_CATEGORY:
+        if config.ZERNIO_CATALOG_ID:
+            grouped = []
+            for category in session.get("categories", []):
+                items = sheets.get_items_in_category(category)
+                if items:
+                    grouped.append((category, items))
+            return interactive.catalog_product_list(config.ZERNIO_CATALOG_ID, grouped)
         return interactive.category_list(session.get("categories", []))
     if state == AWAITING_ORDER and session.get("current_category"):
         items = sheets.get_items_in_category(session["current_category"])
@@ -583,13 +629,13 @@ def _awaiting_confirm(session, upper, phone):
 
     total = _cart_total(cart)
 
-    # L-4: never generate a payment link for a non-positive total.
+    # L-4: never accept a non-positive total.
     if total <= 0:
         _reset(session)
         return ("Your order total came to zero, so there is nothing to pay for. "
                 "Send a message anytime to start a new order.")
 
-    # H-4: reject absurdly large totals before creating a payment link.
+    # H-4: reject absurdly large totals before creating an order.
     if total > config.MAX_ORDER_TOTAL:
         log.warning("Rejected order over ceiling: total=%s", total)
         notify_admin(f"Order rejected: total {_naira(total)} exceeds the "
@@ -662,31 +708,16 @@ def _awaiting_email(session, text, phone):
 
 
 def _finalize_order(session, phone):
-    """Generate the payment link, write the PENDING order, and hand the link to
-    the customer. The cart and total were already validated in AWAITING_CONFIRM;
-    customer_name / customer_email are set on the session before this is called.
+    """Write the confirmed order and tell the customer to pay directly.
 
-    On a link or write failure the state is reset to AWAITING_CONFIRM so the
-    customer can retry by replying YES again.
+    The cart and total were already validated in AWAITING_CONFIRM;
+    customer_name / customer_email are set on the session before this is called.
     """
     cart = session["cart"]
     total = _cart_total(cart)
     order_ref = _unique_order_ref()
 
-    # 1. Generate the exact-amount payment link first.
-    link = generate_payment_link(
-        total,
-        order_ref,
-        phone,
-        email=session.get("customer_email"),
-    )
-    if not link:
-        session["state"] = AWAITING_CONFIRM
-        notify_admin(f"Paystack link generation failed for {order_ref}.")
-        return ("Sorry, I could not create your payment link just now. "
-                "Please reply YES again in a moment to retry.")
-
-    # 2. Write the PENDING order to Sheets.
+    # Write the PENDING order to Sheets.
     try:
         sheets.append_order(order_ref, phone, session.get("customer_name"),
                             session.get("customer_email"), cart, total)
@@ -697,12 +728,11 @@ def _finalize_order(session, phone):
         return ("Sorry, something went wrong placing your order. "
                 "Please reply YES again in a moment to retry.")
 
-    # 3. Hand the link to the customer; wait passively for the webhook.
     session["state"] = AWAITING_PAYMENT
-    log.info("Order %s placed, awaiting payment", order_ref)
+    log.info("Order %s placed for direct payment", order_ref)
     return (
-        f"Pay {_naira(total)} here to place your order:\n"
-        f"{link}\n"
-        f"Order reference: {order_ref}\n"
-        "You will get a confirmation once payment is received."
+        f"Your order {order_ref} has been received.\n"
+        f"Total: {_naira(total)}\n"
+        "Please pay directly when your order is delivered or collected.\n"
+        f"Pickup address: {config.PICKUP_ADDRESS}"
     )

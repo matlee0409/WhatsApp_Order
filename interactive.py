@@ -18,6 +18,28 @@ def category_list(categories):
     }
 
 
+def catalog_product_list(catalog_id, categories):
+    return {
+        "type": "product_list",
+        "header": {"type": "text", "text": "Our menu"},
+        "body": {"text": "Tap View items to browse our products."},
+        "action": {
+            "catalog_id": catalog_id,
+            "sections": [
+                {
+                    "title": category[:24],
+                    "product_items": [
+                        {"product_retailer_id": item["retailer_id"]}
+                        for item in items[:30]
+                    ],
+                }
+                for category, items in categories
+                if items
+            ],
+        },
+    }
+
+
 def product_list(category, items):
     return {
         "type": "list",
@@ -44,8 +66,8 @@ def cart_actions():
         "type": "button",
         "body": {"text": "What would you like to do next?"},
         "action": {"buttons": [
-            {"title": "Add more", "payload": "MORE"},
-            {"title": "Checkout", "payload": "DONE"},
+            {"type": "reply", "reply": {"id": "MORE", "title": "Add more"}},
+            {"type": "reply", "reply": {"id": "DONE", "title": "Checkout"}},
         ]},
     }
 
@@ -55,8 +77,8 @@ def confirmation_actions():
         "type": "button",
         "body": {"text": "Confirm your order?"},
         "action": {"buttons": [
-            {"title": "Confirm", "payload": "YES"},
-            {"title": "Cancel", "payload": "CANCEL"},
+            {"type": "reply", "reply": {"id": "YES", "title": "Confirm"}},
+            {"type": "reply", "reply": {"id": "CANCEL", "title": "Cancel"}},
         ]},
     }
 
@@ -66,8 +88,8 @@ def fulfilment_actions():
         "type": "button",
         "body": {"text": "Choose the delivery option to continue."},
         "action": {"buttons": [
-            {"title": "Delivery", "payload": "DELIVERY"},
-            {"title": "Pick up", "payload": "PICKUP"},
+            {"type": "reply", "reply": {"id": "DELIVERY", "title": "Delivery"}},
+            {"type": "reply", "reply": {"id": "PICKUP", "title": "Pick up"}},
         ]},
     }
 

@@ -26,7 +26,7 @@ def _naira(kobo):
 def _menu_item(item):
     return {"category": item.category.name, "name": item.name,
             "description": item.description or "", "price": _naira(item.price_kobo),
-            "available": bool(item.is_available)}
+            "available": bool(item.is_available), "retailer_id": f"menu-item-{item.id}"}
 
 
 def get_menu():

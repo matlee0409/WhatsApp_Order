@@ -46,7 +46,7 @@ def _dashboard_data():
             select(MenuItem).options(joinedload(MenuItem.category), joinedload(MenuItem.image)).order_by(MenuItem.id)
         ).scalars().all()
         categories = session.execute(
-            select(MenuCategory).options(joinedload(MenuCategory.items)).order_by(MenuCategory.sort_order, MenuCategory.id)
+            select(MenuCategory).options(joinedload(MenuCategory.items), joinedload(MenuCategory.image)).order_by(MenuCategory.sort_order, MenuCategory.id)
         ).unique().scalars().all()
         payments = session.execute(
             select(Payment)
@@ -76,6 +76,7 @@ def _dashboard_data():
             "products": len(category.items),
             "sales": 0,
             "active": bool(category.is_active),
+            "image_url": f"/media/categories/{category.id}" if category.image else "",
         }
         for category in categories
     ]
