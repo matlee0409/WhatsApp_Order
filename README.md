@@ -126,7 +126,7 @@ The app currently uses its local catalog as the WhatsApp commerce interface, so 
 ## 8. Configuration
 
 Copy `.env.example` to `.env` and fill in every value. For Railway, create
-`FLASK_SECRET_KEY` and `ZERNIO_WEBHOOK_SECRET` with the variable editor's
+`FLASK_SECRET` and `ZERNIO_WEBHOOK_SECRET` with the variable editor's
 **Generate Value** action and leave those generated values unchanged across
 redeployments. Railway variable references such as `${{ secret() }}` are not
 required for this app; the important part is that the values are persistent and

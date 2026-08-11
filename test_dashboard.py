@@ -62,12 +62,12 @@ class DashboardAccessTests(unittest.TestCase):
         with patch.object(app_module.config, "FLASK_ENV", "production"), \
              patch.object(app_module.config, "DATABASE_URL", "postgresql+psycopg://db"), \
              patch.object(app_module.config, "REDIS_URL", "redis://redis"), \
-             patch.object(app_module.config, "FLASK_SECRET_KEY", None), \
+             patch.object(app_module.config, "FLASK_SECRET", None), \
              patch.object(app_module.config, "ZERNIO_WEBHOOK_SECRET", None):
-            with self.assertRaisesRegex(RuntimeError, "FLASK_SECRET_KEY"):
+            with self.assertRaisesRegex(RuntimeError, "FLASK_SECRET"):
                 app_module.config.check_production_safety()
 
-            app_module.config.FLASK_SECRET_KEY = "persistent-flask-secret"
+            app_module.config.FLASK_SECRET = "persistent-flask-secret"
             with self.assertRaisesRegex(RuntimeError, "ZERNIO_WEBHOOK_SECRET"):
                 app_module.config.check_production_safety()
 
