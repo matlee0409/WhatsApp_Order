@@ -51,6 +51,14 @@ document.addEventListener('DOMContentLoaded', () => {
   })
 
   const productModal = document.querySelector('#product-modal')
+  document.querySelector('[data-modal-open="product"]:not([data-edit-product])')?.addEventListener('click', () => {
+    delete productModal.dataset.itemId
+    productModal.querySelector('[name="product-name"]').value = ''
+    productModal.querySelector('[name="product-price"]').value = ''
+    productModal.querySelector('[name="product-active"]').checked = true
+    productModal.querySelector('[name="product-description"]').value = ''
+    productModal.querySelector('[name="product-image"]').value = ''
+  })
   document.querySelectorAll('[data-edit-product]').forEach((button) => {
     button.addEventListener('click', () => {
       const card = button.closest('[data-product-card]')
@@ -66,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
     })
   })
   document.querySelector('[data-save-product]')?.addEventListener('click', async () => {
-    if (!productModal.dataset.itemId) return showToast('Product creation is not available yet')
     const data = {
       name: productModal.querySelector('[name="product-name"]').value,
       category_id: Number(productModal.querySelector('[name="product-category"]').value),
@@ -74,13 +81,17 @@ document.addEventListener('DOMContentLoaded', () => {
       active: productModal.querySelector('[name="product-active"]').checked,
       description: productModal.querySelector('[name="product-description"]').value,
     }
-    const response = await fetch(`/dashboard/menu-items/${productModal.dataset.itemId}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
+    const itemId = productModal.dataset.itemId
+    const endpoint = itemId ? `/dashboard/menu-items/${itemId}` : '/dashboard/menu-items'
+    const response = await fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
     if (!response.ok) return showToast((await response.json()).error || 'Unable to save product')
+    const savedItem = await response.json()
+    const savedItemId = itemId || savedItem.item_id
     const image = productModal.querySelector('[name="product-image"]').files[0]
     if (image) {
       const form = new FormData()
       form.append('image', image)
-      const imageResponse = await fetch(`/dashboard/menu-items/${productModal.dataset.itemId}/image`, { method: 'POST', body: form })
+      const imageResponse = await fetch(`/dashboard/menu-items/${savedItemId}/image`, { method: 'POST', body: form })
       if (!imageResponse.ok) return showToast((await imageResponse.json()).error || 'Unable to upload image')
     }
     window.location.reload()

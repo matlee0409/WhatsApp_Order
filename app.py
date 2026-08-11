@@ -289,6 +289,35 @@ def upload_menu_item_image(item_id):
     return jsonify(ok=True, image_url=f"/media/products/{item_id}")
 
 
+@app.post("/dashboard/menu-items")
+@dashboard_required
+def create_menu_item():
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    category_id = payload.get("category_id")
+    try:
+        price_kobo = int(round(float(payload.get("price")) * 100))
+    except (TypeError, ValueError):
+        return jsonify(error="Enter a valid price."), 400
+    if not name or price_kobo < 0 or not isinstance(category_id, int):
+        return jsonify(error="Name, category, and price are required."), 400
+    with session_scope() as db_session:
+        category = db_session.get(MenuCategory, category_id)
+        if category is None:
+            return jsonify(error="Category not found."), 404
+        item = MenuItem(
+            name=name,
+            description=(payload.get("description") or "").strip() or None,
+            price_kobo=price_kobo,
+            is_available=bool(payload.get("active")),
+            category=category,
+        )
+        db_session.add(item)
+        db_session.flush()
+        item_id = item.id
+    return jsonify(ok=True, item_id=item_id)
+
+
 @app.post("/dashboard/menu-items/<int:item_id>")
 @dashboard_required
 def update_menu_item(item_id):
