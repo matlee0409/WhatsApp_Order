@@ -379,6 +379,7 @@ def zernio_callback():
     try:
         connection = zernio.callback_connection(request.args)
         zernio.save_profile_id(connection["profile_id"])
+        zernio.save_catalog_id(connection["catalog_id"])
         session["zernio_connection"] = connection
     except ValueError as exc:
         log.warning("Zernio WhatsApp connection was incomplete: %s", exc)
@@ -429,7 +430,22 @@ def zernio_webhook():
     if not _rate.allow(phone):
         return Response("", status=200)
     try:
-        catalog_order = (message.get("metadata") or {}).get("order") if isinstance(message.get("metadata"), dict) else None
+        metadata = (
+            message.get("metadata")
+            if isinstance(message.get("metadata"), dict)
+            else event.get("metadata")
+            if isinstance(event.get("metadata"), dict)
+            else {}
+        )
+        catalog_order = metadata.get("order")
+        referred_product = metadata.get("referredProduct") or metadata.get("referred_product")
+        zernio.save_catalog_id(
+            (catalog_order or {}).get("catalog_id")
+            or (catalog_order or {}).get("catalogId")
+            or (referred_product or {}).get("catalog_id")
+            or (referred_product or {}).get("catalogId")
+            or ""
+        )
         if catalog_order:
             reply = handle_catalog_order(phone, catalog_order)
         else:

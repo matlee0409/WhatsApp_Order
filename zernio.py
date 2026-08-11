@@ -46,10 +46,49 @@ def _profile_from_response(payload):
     return profile.get("_id") or profile.get("id")
 
 
-def _saved_profile_id() -> str:
+def _catalog_from_payload(payload):
+    if not isinstance(payload, dict):
+        return ""
+    for key in ("catalog_id", "catalogId"):
+        value = payload.get(key)
+        if value:
+            return str(value).strip()
+    for key in ("catalog", "business", "connection", "data"):
+        found = _catalog_from_payload(payload.get(key))
+        if found:
+            return found
+    return ""
+
+
+def _saved_setting(key: str) -> str:
     with session_scope() as db_session:
-        setting = db_session.query(RestaurantSetting).filter_by(key="zernio_profile_id").first()
+        setting = db_session.query(RestaurantSetting).filter_by(key=key).first()
         return setting.value if setting else ""
+
+
+def _saved_profile_id() -> str:
+    return _saved_setting("zernio_profile_id")
+
+
+def _saved_catalog_id() -> str:
+    return _saved_setting("zernio_catalog_id")
+
+
+def save_catalog_id(catalog_id: str) -> None:
+    if not catalog_id:
+        return
+    with session_scope() as db_session:
+        setting = db_session.query(RestaurantSetting).filter_by(key="zernio_catalog_id").first()
+        if setting is None:
+            db_session.add(RestaurantSetting(key="zernio_catalog_id", value=catalog_id))
+        else:
+            setting.value = catalog_id
+
+
+def _save_profile_payload(payload) -> None:
+    catalog_id = _catalog_from_payload(payload)
+    if catalog_id:
+        save_catalog_id(catalog_id)
 
 
 def save_profile_id(profile_id: str) -> None:
@@ -84,6 +123,7 @@ def get_or_create_profile() -> str:
             profile_id = profile.get("_id") or profile.get("id")
             if profile_id:
                 save_profile_id(profile_id)
+                _save_profile_payload(profile)
                 return profile_id
 
     response = requests.post(
@@ -93,16 +133,21 @@ def get_or_create_profile() -> str:
         timeout=15,
     )
     response.raise_for_status()
-    profile_id = _profile_from_response(response.json())
+    created_payload = response.json()
+    profile_id = _profile_from_response(created_payload)
     if not profile_id:
         raise RuntimeError("Zernio did not return the created profile ID")
     save_profile_id(profile_id)
+    _save_profile_payload(created_payload)
     return profile_id
 
 
 def get_catalog_id() -> str:
-    """Return the Zernio-managed profile ID used by WhatsApp catalog messages."""
-    return get_or_create_profile()
+    """Return the Meta catalog ID connected to this WhatsApp account."""
+    catalog_id = _saved_catalog_id()
+    if not catalog_id:
+        raise RuntimeError("No Meta catalog is connected to the WhatsApp account")
+    return catalog_id
 
 
 def get_whatsapp_auth_url(redirect_uri: str | None = None) -> tuple[str, str]:
@@ -198,8 +243,10 @@ def callback_connection(args: dict) -> dict:
     account_id = (args.get("accountId") or "").strip()
     if not account_id:
         raise ValueError("Zernio did not return a connected account")
+    catalog_id = (args.get("catalogId") or args.get("catalog_id") or "").strip()
     return {
         "account_id": account_id,
         "profile_id": (args.get("profileId") or "").strip(),
+        "catalog_id": catalog_id,
         "phone": (args.get("username") or "").strip(),
     }
