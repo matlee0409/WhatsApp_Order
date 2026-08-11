@@ -38,6 +38,10 @@ PAYSTACK_WEBHOOK_SECRET = _get("PAYSTACK_WEBHOOK_SECRET")
 # SQLite and local Redis defaults keep imports and development previews usable;
 # production requires explicit network-backed services below.
 DATABASE_URL = _get("DATABASE_URL", "sqlite:///order_bot.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL.removeprefix("postgres://")
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL.removeprefix("postgresql://")
 REDIS_URL = _get("REDIS_URL", "redis://localhost:6379/0")
 
 # ─── Zernio WhatsApp connection ────────────────────────────────────────────
