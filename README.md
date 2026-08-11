@@ -119,7 +119,7 @@ customer is notified exactly once.
 5. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET` and enable cart order events.
 6. In Meta Commerce Manager, create or select a catalog and add a scheduled data source using `https://your-domain/meta/catalog-feed.csv`. The feed contains the dashboard menu, stable retailer IDs, prices, availability, and public product image URLs. Connect that catalog to the WABA, then send one catalog interaction so the app can capture the returned `catalog_id` automatically.
 
-The Meta catalog must be connected to the WABA and must ingest the feed before native WhatsApp product messages can display. Images saved in this app are exposed through the feed; they are not visible in WhatsApp until Meta imports them.
+The app currently uses its local catalog as the WhatsApp commerce interface, so no Meta catalog is required for ordering. Customers browse category and product lists, then use the existing cart and checkout flow. The Meta feed remains available for a future native WhatsApp catalog upgrade; images saved in this app are exposed through the feed when that upgrade is enabled.
 
 ---
 
