@@ -1,4 +1,4 @@
-"""Flask app — Zernio WhatsApp and Paystack webhooks.
+"""Flask app — Zernio WhatsApp webhook and order dashboard.
 
 There is deliberately NO Telegram inbound route — Telegram is outbound only
 (Section 13). Both webhooks validate their signatures, are idempotent, and
@@ -7,7 +7,6 @@ stack traces are returned to callers.
 """
 
 import hmac
-import json
 import threading
 import time
 from collections import deque
@@ -28,7 +27,6 @@ from db import ensure_schema, session_scope
 from models import MenuCategory, MenuItem, MenuItemImage
 from logger import get_logger
 from notifier import notify_admin
-from paystack import parse_event, verify_signature
 
 log = get_logger("app")
 
@@ -382,101 +380,7 @@ def zernio_webhook():
     return Response("", status=200)
 
 
-# ─── Paystack inbound ───────────────────────────────────────────────────────
-
-@app.post("/paystack/webhook")
-def paystack_webhook():
-    # Read the RAW body BEFORE parsing (Section 7.2).
-    raw_body = request.get_data()
-    signature = request.headers.get("x-paystack-signature", "")
-    if not verify_signature(raw_body, signature):
-        log.warning("Rejected Paystack webhook: bad signature")
-        return Response("Unauthorized", status=401)
-
-    event, data = parse_event(raw_body)
-
-    # Ignore everything but charge.success (Section 7.3 step 2).
-    if event != "charge.success":
-        return Response("", status=200)
-
-    payment_ref = data.get("reference", "")
-    metadata = data.get("metadata", {}) or {}
-    order_ref = metadata.get("order_ref") or payment_ref
-
-    try:
-        # H-5: serialize the check-then-write for this reference so duplicate
-        # simultaneous webhooks can't both pass the idempotency check.
-        with _reference_locks.hold(payment_ref or order_ref):
-            _process_successful_charge(order_ref, payment_ref, data)
-    except Exception as exc:
-        log.error("Error processing charge for %s: %s", order_ref, exc)
-        notify_admin(f"Error processing Paystack charge {order_ref}: {exc}")
-
-    # Always 200 so Paystack does not retry a handled event.
-    return Response("", status=200)
-
-
-def _process_successful_charge(order_ref, payment_ref, data):
-    # Idempotency by payment reference in the Orders sheet (Section 7.3 step 3).
-    if sheets.payment_ref_processed(payment_ref):
-        log.info("Payment %s already processed — skipping", payment_ref)
-        return
-
-    # Find the order by reference, falling back to payment reference.
-    row_num, record = sheets.find_order_by_ref(order_ref)
-    if record is None:
-        row_num, record = sheets.find_order_by_payment_ref(payment_ref)
-
-    if record is None:
-        log.warning("Paid order not found: ref=%s payref=%s",
-                    order_ref, payment_ref)
-        notify_admin(
-            f"Payment received but order not found (ref={order_ref}, "
-            f"payref={payment_ref})."
-        )
-        return
-
-    resolved_ref = record["order_ref"]
-
-    # C-2: Verify the paid amount covers the order's stored total BEFORE
-    # fulfilling. Paystack reports `amount` in kobo, so convert the stored
-    # Naira total to kobo for an exact integer comparison.
-    expected_kobo = int(round(record["total"] * 100))
-    paid_kobo = int(data.get("amount") or 0)
-    if paid_kobo < expected_kobo:
-        log.warning("Underpayment for order %s: paid=%s expected=%s kobo — "
-                    "not fulfilling.", resolved_ref, paid_kobo, expected_kobo)
-        notify_admin(
-            f"Underpayment detected for order {resolved_ref}: paid "
-            f"{paid_kobo} kobo, expected {expected_kobo} kobo. Not fulfilled."
-        )
-        return
-
-    # Mark Paid + record Paid At (Section 7.3 step 6).
-    sheets.mark_order_paid(resolved_ref, payment_ref)
-
-    # Reconstruct the cart for notifications.
-    try:
-        cart = json.loads(record["items"]) if record["items"] else []
-    except (ValueError, TypeError):
-        cart = []
-    total = record["total"]
-    name = record["name"]
-    phone = record["phone"]
-
-    # Customer WhatsApp confirmation (Section 7.3 step 7).
-    zernio.send_message_to_phone(
-        phone,
-        f"Payment confirmed! Your order {resolved_ref} is being prepared.\n"
-        f"We will let you know when it is ready for pickup.\n"
-        f"Pickup address: {config.PICKUP_ADDRESS}"
-    )
-
-    log.info("Processed payment for order %s", resolved_ref)
-
-
 if __name__ == "__main__":
-    # C-3: refuse to start with a Paystack test key in production.
     config.check_production_safety()
     # Section 12.9: debug off in production, never expose stack traces.
     app.run(

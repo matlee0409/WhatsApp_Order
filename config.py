@@ -30,10 +30,6 @@ def _get(name: str, default=None):
     return value
 
 
-# ─── Paystack ──────────────────────────────────────────────────────────────
-PAYSTACK_SECRET_KEY = _get("PAYSTACK_SECRET_KEY")
-PAYSTACK_WEBHOOK_SECRET = _get("PAYSTACK_WEBHOOK_SECRET")
-
 # ─── PostgreSQL / Redis ─────────────────────────────────────────────────────
 # SQLite and local Redis defaults keep imports and development previews usable;
 # production requires explicit network-backed services below.
@@ -65,8 +61,7 @@ BUSINESS_EMAIL = _get("BUSINESS_EMAIL", "")
 DASHBOARD_PASSWORD = _get("DASHBOARD_PASSWORD")
 FLASK_SECRET_KEY = _get("FLASK_SECRET_KEY")
 
-# Sanity ceiling on a single order total in Naira (H-4). Orders above this are
-# rejected before a payment link is generated. Configurable via env.
+# Sanity ceiling on a single order total in Naira (H-4). Configurable via env.
 MAX_ORDER_TOTAL = float(_get("MAX_ORDER_TOTAL", "1000000"))
 
 
@@ -75,16 +70,7 @@ def is_production() -> bool:
 
 
 def check_production_safety() -> None:
-    """Fail loud at startup (C-3): a Paystack TEST key (sk_test_) accepts test
-    cards, so running one in production would let fake payments fulfil orders.
-    Log a fatal error and exit rather than start in that state.
-    """
-    if is_production() and (PAYSTACK_SECRET_KEY or "").startswith("sk_test_"):
-        log.critical(
-            "FATAL: PAYSTACK_SECRET_KEY is a TEST key (sk_test_) while "
-            "FLASK_ENV=production. Refusing to start — use a live key."
-        )
-        raise SystemExit(1)
+    """Fail loud at startup when production infrastructure is unsafe."""
     if is_production() and (DATABASE_URL.startswith("sqlite") or not DATABASE_URL):
         raise RuntimeError("DATABASE_URL must point to PostgreSQL in production")
     if is_production() and (not REDIS_URL or not REDIS_URL.startswith("redis")):

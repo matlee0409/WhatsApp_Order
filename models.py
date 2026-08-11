@@ -95,7 +95,7 @@ class Payment(Base):
     __tablename__ = "payments"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="RESTRICT"), nullable=False)
-    provider: Mapped[str] = mapped_column(String(32), nullable=False, default="paystack")
+    provider: Mapped[str] = mapped_column(String(32), nullable=False, default="direct")
     provider_reference: Mapped[str] = mapped_column(String(160), nullable=False, unique=True)
     amount_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)

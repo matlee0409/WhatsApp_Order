@@ -5,8 +5,8 @@ vendors, cloud kitchens, and small retailers. Built by Jorion Technologies and
 designed to be cloned and deployed by any developer.
 
 Pickup only. PostgreSQL is the database. The order parser matches customer
-messages against the live menu. Paystack handles payment. Telegram notifies the
-owner (outbound only).
+messages against the live menu. Customers pay directly on pickup or delivery.
+Telegram notifies the owner (outbound only).
 
 ---
 
@@ -29,11 +29,10 @@ pickup‑ready notification.
    one (it falls back to `BUSINESS_EMAIL`). **Returning customers** (recognised
    by their phone number from a previous order) skip both steps automatically,
    reusing their stored name and email.
-7. The bot generates a unique exact‑amount **Paystack** payment link and writes
-   a PENDING order to PostgreSQL.
-8. Customer pays → Paystack webhook fires → the bot confirms payment over
-   WhatsApp, notifies the kitchen via Telegram, and (optionally) emails a
-   receipt via Brevo.
+7. The bot writes a PENDING order and tells the customer to pay directly on
+   pickup or delivery.
+8. The owner prepares the order and receives the normal operational
+   notifications.
 9. The owner prepares the order and changes its **Status** to `Ready` in the
    Orders sheet.
 10. A polling script (`reminders.py`) detects `Status=Ready` and notifies the
@@ -48,7 +47,6 @@ status of their order back.
 ## 2. Prerequisites
 
 - **Python 3.11+**
-- **Paystack** account (live secret key + webhook secret)
 - **Google Cloud** service account with the Sheets API enabled
   (`credentials.json`)
 - **Zernio** account configured for WhatsApp Business
@@ -74,7 +72,7 @@ status of their order back.
 | Rice Dishes | Jollof Rice | Smoky party jollof | 2500 | Yes |
 | Drinks | Coke | Chilled 50cl | 400 | Yes |
 
-- `Price` is in **Naira** (the bot converts to kobo for Paystack).
+- `Price` is in **Naira**.
 - `Available` is `Yes` or `No` — the owner toggles it.
 
 **Tab 2 — `Orders`** (exact headers, row 1):
@@ -104,18 +102,6 @@ Open the **`Orders`** tab and change that order's **Status** from `Paid` to
 WhatsApp **within 2–3 minutes** (the polling interval). There is no command to
 learn — it is one cell edit. The bot then sets `Ready Notified=Yes` so the
 customer is notified exactly once.
-
----
-
-## 6. Paystack setup
-
-1. Use your **live** secret key in `PAYSTACK_SECRET_KEY`.
-2. In the Paystack dashboard, set the **webhook URL** to your public
-   `https://your-domain/paystack/webhook`.
-3. Subscribe to the **`charge.success`** event.
-4. Put the webhook secret into `PAYSTACK_WEBHOOK_SECRET`. The bot validates the
-   `x-paystack-signature` header (HMAC‑SHA512 of the raw body) and returns
-   `401` on mismatch.
 
 ---
 
@@ -164,7 +150,7 @@ python app.py                    # starts Flask on $PORT (default 5003)
 ```
 
 Expose the app over **HTTPS** with a tunnel (e.g. `ngrok http 5003`) and use
-that public URL for the Zernio and Paystack webhooks.
+that public URL for the Zernio webhook.
 
 ---
 
@@ -185,11 +171,9 @@ that public URL for the Zernio and Paystack webhooks.
 
 ## 12. Security notes
 
-- **Paystack signature** — HMAC‑SHA512 of the raw body, constant‑time compared,
-  `401` on mismatch.
 - **Zernio signature** — HMAC-SHA256 validated against the raw webhook body,
   `403` on mismatch.
-- **Idempotency** — Paystack by payment reference (checked in the Orders sheet).
+- **Order tracking** — each direct-payment order receives a unique reference in the Orders sheet.
 - **Menu validation** — every parsed item and price is matched against the live
   menu; unavailable or unknown items are rejected.
 - **Input validation** — phone numbers must be E.164‑ish, order references are

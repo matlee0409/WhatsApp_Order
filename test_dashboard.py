@@ -57,11 +57,9 @@ class DashboardAccessTests(unittest.TestCase):
         self.assertEqual(self.client.get("/health").status_code, 200)
         # Missing signatures are rejected by the webhook itself, not dashboard auth.
         self.assertEqual(self.client.post("/zernio/webhook").status_code, 403)
-        self.assertEqual(self.client.post("/paystack/webhook", data=b"{}").status_code, 401)
 
     def test_production_requires_persistent_webhook_and_flask_secrets(self):
         with patch.object(app_module.config, "FLASK_ENV", "production"), \
-             patch.object(app_module.config, "PAYSTACK_SECRET_KEY", "sk_live_test"), \
              patch.object(app_module.config, "DATABASE_URL", "postgresql+psycopg://db"), \
              patch.object(app_module.config, "REDIS_URL", "redis://redis"), \
              patch.object(app_module.config, "FLASK_SECRET_KEY", None), \
