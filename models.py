@@ -23,7 +23,17 @@ class MenuCategory(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     items: Mapped[list["MenuItem"]] = relationship(back_populates="category")
+    image: Mapped["MenuCategoryImage | None"] = relationship(back_populates="menu_category", uselist=False, cascade="all, delete-orphan")
     __table_args__ = (UniqueConstraint("name", name="uq_menu_categories_name"), Index("ix_menu_categories_active_order", "is_active", "sort_order"))
+
+
+class MenuCategoryImage(Base):
+    __tablename__ = "menu_category_images"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    menu_category_id: Mapped[int] = mapped_column(ForeignKey("menu_categories.id", ondelete="CASCADE"), nullable=False, unique=True)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    menu_category: Mapped[MenuCategory] = relationship(back_populates="image")
 
 
 class MenuItem(Base):

@@ -24,7 +24,7 @@ import zernio
 from conversation import handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
 from db import ensure_schema, session_scope
-from models import MenuCategory, MenuItem, MenuItemImage
+from models import MenuCategory, MenuCategoryImage, MenuItem, MenuItemImage
 from logger import get_logger
 from notifier import notify_admin
 
@@ -280,6 +280,62 @@ def update_menu_item(item_id):
         item.category = category
         item.is_available = bool(payload.get("active"))
     return jsonify(ok=True)
+
+
+@app.post("/dashboard/menu-categories")
+@dashboard_required
+def create_menu_category():
+    payload = request.get_json(silent=True) or {}
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return jsonify(error="Category name is required."), 400
+    with session_scope() as db_session:
+        if db_session.query(MenuCategory).filter_by(name=name).first() is not None:
+            return jsonify(error="A category with that name already exists."), 409
+        category = MenuCategory(name=name, is_active=bool(payload.get("active")))
+        db_session.add(category)
+        db_session.flush()
+        category_id = category.id
+    return jsonify(ok=True, category_id=category_id)
+
+
+@app.get("/media/categories/<int:category_id>")
+def category_image(category_id):
+    with session_scope() as db_session:
+        image = db_session.query(MenuCategoryImage).filter_by(menu_category_id=category_id).first()
+        if image is None:
+            return Response(status=404)
+        return Response(image.data, mimetype=image.mime_type, headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.post("/dashboard/menu-categories/<int:category_id>/image")
+@dashboard_required
+def upload_menu_category_image(category_id):
+    upload = request.files.get("image")
+    if upload is None or not upload.mimetype.startswith("image/"):
+        return jsonify(error="Choose an image file."), 400
+    data = upload.read(5 * 1024 * 1024 + 1)
+    signatures = {
+        "image/jpeg": data.startswith(b"\xff\xd8\xff"),
+        "image/png": data.startswith(b"\x89PNG\r\n\x1a\n"),
+        "image/gif": data.startswith((b"GIF87a", b"GIF89a")),
+        "image/webp": data.startswith(b"RIFF") and data[8:12] == b"WEBP",
+    }
+    if not data or len(data) > 5 * 1024 * 1024:
+        return jsonify(error="Images must be smaller than 5 MB."), 400
+    if not signatures.get(upload.mimetype, False):
+        return jsonify(error="Upload a valid JPG, PNG, GIF, or WebP image."), 400
+    with session_scope() as db_session:
+        category = db_session.get(MenuCategory, category_id)
+        if category is None:
+            return jsonify(error="Category not found."), 404
+        image = db_session.query(MenuCategoryImage).filter_by(menu_category_id=category_id).first()
+        if image is None:
+            db_session.add(MenuCategoryImage(menu_category_id=category_id, mime_type=upload.mimetype, data=data))
+        else:
+            image.mime_type = upload.mimetype
+            image.data = data
+    return jsonify(ok=True, image_url=f"/media/categories/{category_id}")
 
 
 @app.post("/dashboard/menu-categories/<int:category_id>")
