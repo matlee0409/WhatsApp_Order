@@ -1,5 +1,6 @@
 import unittest
 import unittest
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import app as app_module
@@ -100,6 +101,50 @@ class DashboardAccessTests(unittest.TestCase):
         remember.assert_called_once_with("+15551234567", "account-id", "conversation-id")
         handle.assert_called_once_with("+15551234567", "hi")
         send.assert_called_once_with("account-id", "conversation-id", "Hello", None)
+
+    def test_creates_menu_item_from_product_form(self):
+        category = MagicMock(id=7)
+        db_session = MagicMock()
+        db_session.get.return_value = category
+
+        def add(item):
+            item.id = 23
+
+        db_session.add.side_effect = add
+        db_session.flush.side_effect = lambda: None
+
+        @contextmanager
+        def fake_session_scope():
+            yield db_session
+
+        self.login()
+        with patch.object(app_module, "session_scope", fake_session_scope):
+            response = self.client.post(
+                "/dashboard/menu-items",
+                json={
+                    "name": "Spicy wrap",
+                    "category_id": 7,
+                    "price": "12.50",
+                    "active": True,
+                    "description": "Fresh and filling",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {"ok": True, "item_id": 23})
+        created = db_session.add.call_args.args[0]
+        self.assertEqual(created.name, "Spicy wrap")
+        self.assertEqual(created.price_kobo, 1250)
+        self.assertTrue(created.is_available)
+
+    def test_product_creation_rejects_invalid_price(self):
+        self.login()
+        response = self.client.post(
+            "/dashboard/menu-items",
+            json={"name": "Spicy wrap", "category_id": 7, "price": "free"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json["error"], "Enter a valid price.")
 
     def test_zernio_connection_requires_dashboard_login(self):
         response = self.client.get("/dashboard/zernio/connect")
