@@ -58,7 +58,7 @@ BUSINESS_EMAIL = _get("BUSINESS_EMAIL", "")
 # Dashboard access. Production requires explicit secrets; development uses a
 # preview-only fallback so the UI can be evaluated without local setup.
 DASHBOARD_PASSWORD = _get("DASHBOARD_PASSWORD")
-FLASK_SECRET_KEY = _get("FLASK_SECRET_KEY")
+FLASK_SECRET = _get("FLASK_SECRET")
 
 # Sanity ceiling on a single order total in Naira (H-4). Configurable via env.
 MAX_ORDER_TOTAL = float(_get("MAX_ORDER_TOTAL", "1000000"))
@@ -75,7 +75,7 @@ def check_production_safety() -> None:
     if is_production() and (not REDIS_URL or not REDIS_URL.startswith("redis")):
         raise RuntimeError("REDIS_URL must point to Redis in production")
     if is_production():
-        for name in ("FLASK_SECRET_KEY", "ZERNIO_WEBHOOK_SECRET"):
+        for name in ("FLASK_SECRET", "ZERNIO_WEBHOOK_SECRET"):
             value = require(name)
             if value.startswith(("replace_with_", "your_", "<")):
                 raise RuntimeError(

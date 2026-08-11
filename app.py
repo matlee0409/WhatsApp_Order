@@ -35,7 +35,7 @@ log = get_logger("app")
 app = Flask(__name__)
 config.check_production_safety()
 ensure_schema()
-app.secret_key = config.FLASK_SECRET_KEY or "preview-only-secret"
+app.secret_key = config.FLASK_SECRET or "preview-only-secret"
 app.config.update(
     MAX_CONTENT_LENGTH=5 * 1024 * 1024,
     SESSION_COOKIE_HTTPONLY=True,
