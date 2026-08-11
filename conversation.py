@@ -36,6 +36,7 @@ import config
 import nlu
 import sheets
 import interactive
+import zernio
 from logger import get_logger, redact_phone
 from notifier import notify_admin
 
@@ -392,14 +393,17 @@ def interactive_payload(phone):
     session = _get_session(phone)
     state = session["state"]
     if state == AWAITING_CATEGORY:
-        if config.ZERNIO_CATALOG_ID:
-            grouped = []
-            for category in session.get("categories", []):
-                items = sheets.get_items_in_category(category)
-                if items:
-                    grouped.append((category, items))
-            return interactive.catalog_product_list(config.ZERNIO_CATALOG_ID, grouped)
-        return interactive.category_list(session.get("categories", []))
+        try:
+            catalog_id = zernio.get_catalog_id()
+        except Exception as exc:
+            log.warning("Native catalog unavailable; using category list: %s", exc)
+            return interactive.category_list(session.get("categories", []))
+        grouped = []
+        for category in session.get("categories", []):
+            items = sheets.get_items_in_category(category)
+            if items:
+                grouped.append((category, items))
+        return interactive.catalog_product_list(catalog_id, grouped)
     if state == AWAITING_ORDER and session.get("current_category"):
         items = sheets.get_items_in_category(session["current_category"])
         return interactive.product_list(session["current_category"], items)

@@ -377,7 +377,9 @@ def zernio_callback():
         log.warning("Rejected Zernio callback with invalid state")
         return redirect(url_for("dashboard_page", page="settings", zernio_error="invalid_state"))
     try:
-        session["zernio_connection"] = zernio.callback_connection(request.args)
+        connection = zernio.callback_connection(request.args)
+        zernio.save_profile_id(connection["profile_id"])
+        session["zernio_connection"] = connection
     except ValueError as exc:
         log.warning("Zernio WhatsApp connection was incomplete: %s", exc)
         return redirect(url_for("dashboard_page", page="settings", zernio_error="incomplete"))

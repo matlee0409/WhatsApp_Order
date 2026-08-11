@@ -43,11 +43,9 @@ REDIS_URL = _get("REDIS_URL", "redis://localhost:6379/0")
 # ─── Zernio WhatsApp connection ────────────────────────────────────────────
 ZERNIO_API_BASE_URL = _get("ZERNIO_API_BASE_URL", "https://zernio.com/api")
 ZERNIO_API_KEY = _get("ZERNIO_API_KEY")
-ZERNIO_PROFILE_ID = _get("ZERNIO_PROFILE_ID")
 ZERNIO_PROFILE_NAME = _get("ZERNIO_PROFILE_NAME")
 ZERNIO_REDIRECT_URI = _get("ZERNIO_REDIRECT_URI")
 ZERNIO_WEBHOOK_SECRET = _get("ZERNIO_WEBHOOK_SECRET")
-ZERNIO_CATALOG_ID = _get("ZERNIO_CATALOG_ID")
 
 # ─── App ───────────────────────────────────────────────────────────────────
 FLASK_ENV = _get("FLASK_ENV", "production")

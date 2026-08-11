@@ -107,7 +107,7 @@ customer is notified exactly once.
 
 ## 7. Zernio WhatsApp setup
 
-1. Set `ZERNIO_API_KEY` in your environment.
+1. Set `ZERNIO_API_KEY` in your environment. Do not set `ZERNIO_PROFILE_ID` or `ZERNIO_CATALOG_ID`: the app creates or discovers the Zernio profile during connection and stores that managed ID automatically.
 2. Set `ZERNIO_WEBHOOK_SECRET` to the same persistent secret configured in Zernio.
    In Railway, use the variable's **Generate Value** action, then copy that value
    into Zernio's webhook signing-secret setting. Do not generate a new value on
