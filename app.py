@@ -320,7 +320,7 @@ def zernio_connect():
 def zernio_callback():
     expected_state = session.pop("zernio_oauth_state", "")
     supplied_state = request.args.get("state", "")
-    if not expected_state or not hmac.compare_digest(expected_state, supplied_state):
+    if not expected_state or (supplied_state and not hmac.compare_digest(expected_state, supplied_state)):
         log.warning("Rejected Zernio callback with invalid state")
         return redirect(url_for("dashboard_page", page="settings", zernio_error="invalid_state"))
     try:
