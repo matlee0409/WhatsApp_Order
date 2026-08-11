@@ -107,7 +107,7 @@ customer is notified exactly once.
 
 ## 7. Zernio WhatsApp setup
 
-1. Set `ZERNIO_API_KEY` in your environment.
+1. Set `ZERNIO_API_KEY` in your environment. Do not set `ZERNIO_PROFILE_ID` or `ZERNIO_CATALOG_ID`: the app stores the profile and Meta catalog IDs returned by Zernio/Meta automatically.
 2. Set `ZERNIO_WEBHOOK_SECRET` to the same persistent secret configured in Zernio.
    In Railway, use the variable's **Generate Value** action, then copy that value
    into Zernio's webhook signing-secret setting. Do not generate a new value on
@@ -117,6 +117,9 @@ customer is notified exactly once.
 4. Configure Zernio to send signed inbound events to
    `https://your-domain/zernio/webhook` (POST).
 5. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET` and enable cart order events.
+6. In Meta Commerce Manager, create or select a catalog and add a scheduled data source using `https://your-domain/meta/catalog-feed.csv`. The feed contains the dashboard menu, stable retailer IDs, prices, availability, and public product image URLs. Connect that catalog to the WABA, then send one catalog interaction so the app can capture the returned `catalog_id` automatically.
+
+The app currently uses its local catalog as the WhatsApp commerce interface, so no Meta catalog is required for ordering. Customers browse category and product lists, then use the existing cart and checkout flow. The Meta feed remains available for a future native WhatsApp catalog upgrade; images saved in this app are exposed through the feed when that upgrade is enabled.
 
 ---
 

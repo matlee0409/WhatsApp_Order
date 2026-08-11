@@ -392,13 +392,6 @@ def interactive_payload(phone):
     session = _get_session(phone)
     state = session["state"]
     if state == AWAITING_CATEGORY:
-        if config.ZERNIO_CATALOG_ID:
-            grouped = []
-            for category in session.get("categories", []):
-                items = sheets.get_items_in_category(category)
-                if items:
-                    grouped.append((category, items))
-            return interactive.catalog_product_list(config.ZERNIO_CATALOG_ID, grouped)
         return interactive.category_list(session.get("categories", []))
     if state == AWAITING_ORDER and session.get("current_category"):
         items = sheets.get_items_in_category(session["current_category"])

@@ -63,8 +63,7 @@ class DashboardAccessTests(unittest.TestCase):
              patch.object(app_module.config, "DATABASE_URL", "postgresql+psycopg://db"), \
              patch.object(app_module.config, "REDIS_URL", "redis://redis"), \
              patch.object(app_module.config, "FLASK_SECRET_KEY", None), \
-             patch.object(app_module.config, "ZERNIO_WEBHOOK_SECRET", None), \
-             patch.object(app_module.config, "ZERNIO_CATALOG_ID", "catalog-id"):
+             patch.object(app_module.config, "ZERNIO_WEBHOOK_SECRET", None):
             with self.assertRaisesRegex(RuntimeError, "FLASK_SECRET_KEY"):
                 app_module.config.check_production_safety()
 
@@ -108,28 +107,22 @@ class DashboardAccessTests(unittest.TestCase):
         self.assertIn("/dashboard/login", response.headers["Location"])
 
     @patch.object(app_module.config, "ZERNIO_API_KEY", "test-api-key")
-    @patch.object(app_module.config, "ZERNIO_PROFILE_ID", "test-profile")
     @patch.object(app_module.config, "ZERNIO_REDIRECT_URI", "https://example.test/dashboard/zernio/callback")
-    @patch.object(app_module.zernio.requests, "post")
+    @patch.object(app_module.zernio, "get_or_create_profile", return_value="profile-created")
     @patch.object(app_module.zernio.requests, "get")
-    def test_zernio_connection_redirects_to_hosted_signup(self, get, post):
-        profiles = MagicMock()
-        profiles.json.return_value = {"profiles": []}
-        profiles.raise_for_status.return_value = None
+    def test_zernio_connection_redirects_to_hosted_signup(self, get, profile):
         auth = MagicMock()
         auth.json.return_value = {"data": {"authUrl": "https://zernio.example/signup"}}
         auth.raise_for_status.return_value = None
-        get.side_effect = [profiles, auth]
-        post.return_value.json.return_value = {"profile": {"_id": "profile-created"}}
-        post.return_value.raise_for_status.return_value = None
+        get.return_value = auth
         self.login()
         response = self.client.get("/dashboard/zernio/connect")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.headers["Location"], "https://zernio.example/signup")
         with self.client.session_transaction() as session:
             self.assertTrue(session.get("zernio_oauth_state"))
-        self.assertEqual(get.call_count, 2)
-        post.assert_called_once()
+        profile.assert_called_once_with()
+        get.assert_called_once()
 
     def test_zernio_callback_rejects_invalid_state(self):
         self.login()
@@ -137,7 +130,8 @@ class DashboardAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("zernio_error=invalid_state", response.headers["Location"])
 
-    def test_zernio_callback_stores_non_sensitive_connection_details(self):
+    @patch.object(app_module.zernio, "save_profile_id")
+    def test_zernio_callback_stores_non_sensitive_connection_details(self, save_profile_id):
         self.login()
         with self.client.session_transaction() as session:
             session["zernio_oauth_state"] = "expected-state"
@@ -150,6 +144,7 @@ class DashboardAccessTests(unittest.TestCase):
             self.assertEqual(session["zernio_connection"]["account_id"], "account")
             self.assertEqual(session["zernio_connection"]["phone"], "+2348000000000")
             self.assertNotIn("api_key", session["zernio_connection"])
+        save_profile_id.assert_called_once_with("profile")
 
     def test_zernio_documented_callback_without_state_connects(self):
         self.login()

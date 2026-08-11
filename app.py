@@ -6,7 +6,9 @@ return 200 quickly (Section 12.9). debug is forced off in production and no
 stack traces are returned to callers.
 """
 
+import csv
 import hmac
+import io
 import threading
 import time
 from collections import deque
@@ -136,6 +138,36 @@ def _security_headers(response):
 @app.get("/health")
 def health():
     return {"status": "ok"}, 200
+
+
+@app.get("/meta/catalog-feed.csv")
+def meta_catalog_feed():
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=["id", "title", "description", "availability", "condition", "price", "link", "image_link", "brand"],
+    )
+    writer.writeheader()
+    with session_scope() as db_session:
+        items = (
+            db_session.query(MenuItem)
+            .join(MenuCategory)
+            .order_by(MenuCategory.sort_order, MenuItem.id)
+            .all()
+        )
+        for item in items:
+            writer.writerow({
+                "id": f"menu-item-{item.id}",
+                "title": item.name,
+                "description": item.description or item.name,
+                "availability": "in stock" if item.is_available else "out of stock",
+                "condition": "new",
+                "price": f"{item.price_kobo / 100:.2f} NGN",
+                "link": url_for("dashboard_page", page="catalog", _external=True),
+                "image_link": url_for("product_image", item_id=item.id, _external=True) if item.image else "",
+                "brand": config.BUSINESS_NAME,
+            })
+    return Response(output.getvalue(), mimetype="text/csv")
 
 
 _login_rate = _RateLimiter(limit=8, window=300)
@@ -377,7 +409,10 @@ def zernio_callback():
         log.warning("Rejected Zernio callback with invalid state")
         return redirect(url_for("dashboard_page", page="settings", zernio_error="invalid_state"))
     try:
-        session["zernio_connection"] = zernio.callback_connection(request.args)
+        connection = zernio.callback_connection(request.args)
+        zernio.save_profile_id(connection["profile_id"])
+        zernio.save_catalog_id(connection["catalog_id"])
+        session["zernio_connection"] = connection
     except ValueError as exc:
         log.warning("Zernio WhatsApp connection was incomplete: %s", exc)
         return redirect(url_for("dashboard_page", page="settings", zernio_error="incomplete"))
@@ -427,7 +462,22 @@ def zernio_webhook():
     if not _rate.allow(phone):
         return Response("", status=200)
     try:
-        catalog_order = (message.get("metadata") or {}).get("order") if isinstance(message.get("metadata"), dict) else None
+        metadata = (
+            message.get("metadata")
+            if isinstance(message.get("metadata"), dict)
+            else event.get("metadata")
+            if isinstance(event.get("metadata"), dict)
+            else {}
+        )
+        catalog_order = metadata.get("order")
+        referred_product = metadata.get("referredProduct") or metadata.get("referred_product")
+        zernio.save_catalog_id(
+            (catalog_order or {}).get("catalog_id")
+            or (catalog_order or {}).get("catalogId")
+            or (referred_product or {}).get("catalog_id")
+            or (referred_product or {}).get("catalogId")
+            or ""
+        )
         if catalog_order:
             reply = handle_catalog_order(phone, catalog_order)
         else:
