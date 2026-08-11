@@ -108,6 +108,18 @@ class DashboardAccessTests(unittest.TestCase):
             self.assertEqual(session["zernio_connection"]["phone"], "+2348000000000")
             self.assertNotIn("api_key", session["zernio_connection"])
 
+    def test_zernio_documented_callback_without_state_connects(self):
+        self.login()
+        with self.client.session_transaction() as session:
+            session["zernio_oauth_state"] = "provider-does-not-return-state"
+        response = self.client.get(
+            "/dashboard/zernio/callback?connected=whatsapp"
+            "&profileId=profile&accountId=account&username=%2B2348000000000"
+        )
+        self.assertEqual(response.status_code, 302)
+        with self.client.session_transaction() as session:
+            self.assertEqual(session["zernio_connection"]["account_id"], "account")
+
 
 if __name__ == "__main__":
     unittest.main()
