@@ -108,17 +108,15 @@ customer is notified exactly once.
 ## 7. Zernio WhatsApp setup
 
 1. Set `ZERNIO_API_KEY` in your environment.
-2. Set `ZERNIO_CATALOG_ID` to the Meta Commerce Manager catalog connected to this WhatsApp account.
-   Every catalog product must use the stable retailer ID `menu-item-{database item id}`.
-3. Set `ZERNIO_WEBHOOK_SECRET` to the same persistent secret configured in Zernio.
+2. Set `ZERNIO_WEBHOOK_SECRET` to the same persistent secret configured in Zernio.
    In Railway, use the variable's **Generate Value** action, then copy that value
    into Zernio's webhook signing-secret setting. Do not generate a new value on
    each deployment or boot.
-4. Open the dashboard settings page and use **Connect Facebook & WhatsApp** to
+3. Open the dashboard settings page and use **Connect Facebook & WhatsApp** to
    complete the hosted Zernio/Meta signup flow.
-5. Configure Zernio to send signed inbound events to
+4. Configure Zernio to send signed inbound events to
    `https://your-domain/zernio/webhook` (POST).
-6. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET` and enable cart order events.
+5. Configure the webhook signature format expected by `ZERNIO_WEBHOOK_SECRET` and enable cart order events.
 
 ---
 
