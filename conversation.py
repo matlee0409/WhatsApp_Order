@@ -347,10 +347,58 @@ def handle_interactive(phone, interaction):
     return handle_message(phone, command)
 
 
+def handle_catalog_order(phone, order):
+    """Validate a native WhatsApp catalog cart against the live menu."""
+    product_items = order.get("product_items") if isinstance(order, dict) else None
+    if not isinstance(product_items, list) or not product_items:
+        return handle_message(phone, "hi")
+
+    available = {
+        item["retailer_id"]: item for item in sheets.get_available_menu()
+    }
+    cart = []
+    for product in product_items:
+        if not isinstance(product, dict):
+            continue
+        item = available.get(str(product.get("product_retailer_id") or ""))
+        try:
+            quantity = int(product.get("quantity"))
+        except (TypeError, ValueError):
+            quantity = 0
+        if item is None or quantity <= 0 or quantity > 99:
+            continue
+        cart.append({
+            "name": item["name"],
+            "quantity": quantity,
+            "unit_price": item["price"],
+            "line_total": item["price"] * quantity,
+        })
+
+    if not cart:
+        return "I could not match those products to our current menu. Please send hi to browse again."
+
+    session = _get_session(phone)
+    _reset(session)
+    session["cart"] = cart
+    session["state"] = AWAITING_FULFILMENT
+    return (
+        f"Cart received:\n{_cart_block(cart)}\n"
+        f"Total: {_naira(_cart_total(cart))}\n\n"
+        "Choose delivery or pickup to continue."
+    )
+
+
 def interactive_payload(phone):
     session = _get_session(phone)
     state = session["state"]
     if state == AWAITING_CATEGORY:
+        if config.ZERNIO_CATALOG_ID:
+            grouped = []
+            for category in session.get("categories", []):
+                items = sheets.get_items_in_category(category)
+                if items:
+                    grouped.append((category, items))
+            return interactive.catalog_product_list(config.ZERNIO_CATALOG_ID, grouped)
         return interactive.category_list(session.get("categories", []))
     if state == AWAITING_ORDER and session.get("current_category"):
         items = sheets.get_items_in_category(session["current_category"])

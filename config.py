@@ -47,6 +47,7 @@ ZERNIO_PROFILE_ID = _get("ZERNIO_PROFILE_ID")
 ZERNIO_PROFILE_NAME = _get("ZERNIO_PROFILE_NAME")
 ZERNIO_REDIRECT_URI = _get("ZERNIO_REDIRECT_URI")
 ZERNIO_WEBHOOK_SECRET = _get("ZERNIO_WEBHOOK_SECRET")
+ZERNIO_CATALOG_ID = _get("ZERNIO_CATALOG_ID")
 
 # ─── App ───────────────────────────────────────────────────────────────────
 FLASK_ENV = _get("FLASK_ENV", "production")
@@ -76,7 +77,7 @@ def check_production_safety() -> None:
     if is_production() and (not REDIS_URL or not REDIS_URL.startswith("redis")):
         raise RuntimeError("REDIS_URL must point to Redis in production")
     if is_production():
-        for name in ("FLASK_SECRET_KEY", "ZERNIO_WEBHOOK_SECRET"):
+        for name in ("FLASK_SECRET_KEY", "ZERNIO_WEBHOOK_SECRET", "ZERNIO_CATALOG_ID"):
             value = require(name)
             if value.startswith(("replace_with_", "your_", "<")):
                 raise RuntimeError(

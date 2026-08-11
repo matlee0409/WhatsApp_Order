@@ -63,7 +63,8 @@ class DashboardAccessTests(unittest.TestCase):
              patch.object(app_module.config, "DATABASE_URL", "postgresql+psycopg://db"), \
              patch.object(app_module.config, "REDIS_URL", "redis://redis"), \
              patch.object(app_module.config, "FLASK_SECRET_KEY", None), \
-             patch.object(app_module.config, "ZERNIO_WEBHOOK_SECRET", None):
+             patch.object(app_module.config, "ZERNIO_WEBHOOK_SECRET", None), \
+             patch.object(app_module.config, "ZERNIO_CATALOG_ID", "catalog-id"):
             with self.assertRaisesRegex(RuntimeError, "FLASK_SECRET_KEY"):
                 app_module.config.check_production_safety()
 

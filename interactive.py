@@ -18,6 +18,28 @@ def category_list(categories):
     }
 
 
+def catalog_product_list(catalog_id, categories):
+    return {
+        "type": "product_list",
+        "header": {"type": "text", "text": "Our menu"},
+        "body": {"text": "Tap View items to browse our products."},
+        "action": {
+            "catalog_id": catalog_id,
+            "sections": [
+                {
+                    "title": category[:24],
+                    "product_items": [
+                        {"product_retailer_id": item["retailer_id"]}
+                        for item in items[:30]
+                    ],
+                }
+                for category, items in categories
+                if items
+            ],
+        },
+    }
+
+
 def product_list(category, items):
     return {
         "type": "list",

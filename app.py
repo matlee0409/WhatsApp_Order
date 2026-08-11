@@ -21,7 +21,7 @@ from werkzeug.exceptions import HTTPException
 import config
 import sheets
 import zernio
-from conversation import handle_interactive, handle_message, interactive_payload
+from conversation import handle_catalog_order, handle_interactive, handle_message, interactive_payload
 from dashboard import dashboard_context
 from db import ensure_schema, session_scope
 from models import MenuCategory, MenuCategoryImage, MenuItem, MenuItemImage
@@ -427,7 +427,11 @@ def zernio_webhook():
     if not _rate.allow(phone):
         return Response("", status=200)
     try:
-        reply = handle_interactive(phone, interaction) if interaction else handle_message(phone, body)
+        catalog_order = (message.get("metadata") or {}).get("order") if isinstance(message.get("metadata"), dict) else None
+        if catalog_order:
+            reply = handle_catalog_order(phone, catalog_order)
+        else:
+            reply = handle_interactive(phone, interaction) if interaction else handle_message(phone, body)
         rich_reply = interactive_payload(phone)
         zernio.send_message(account_id, conversation_id, reply, rich_reply)
     except Exception as exc:
